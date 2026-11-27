@@ -12,6 +12,8 @@ contextBridge.exposeInMainWorld("companion", {
   setClaudeCode: (patch) => ipcRenderer.invoke("c:cc:set", patch),
   pickFolder: () => ipcRenderer.invoke("c:cc:pickFolder"),
   detectClaudeCode: () => ipcRenderer.invoke("c:cc:detect"),
+  connectChat: (sessionId) => ipcRenderer.invoke("c:chat:connect", sessionId),
+  freshChat: () => ipcRenderer.invoke("c:chat:fresh"),
   open: (url) => ipcRenderer.send("c:open", url),
   on: (fn) => ipcRenderer.on("companion", (_e, msg) => fn(msg)),
 });

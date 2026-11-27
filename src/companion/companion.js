@@ -7,7 +7,7 @@ let player = null;
 let mcpRows = []; // editable copy of the app-server list
 
 // ---------------------------------------------------------------- mini Clawd
-const TAB_ANIMS = { general: "tools", "api-key": "login", connections: "ide-connected", "claude-code": "writing", about: "hello" };
+const TAB_ANIMS = { general: "tools", "api-key": "login", connections: "ide-connected", chats: "resume", "claude-code": "writing", about: "hello" };
 
 (async function start() {
   try {
@@ -62,6 +62,18 @@ function render() {
   $("modelLine").textContent = model ? `thinking with ${model.label}` : "";
   $("shortcut").textContent = state.shortcut;
   $("version").textContent = `Version ${state.version}`;
+
+  // brain
+  document.querySelectorAll('input[name="brain"]').forEach((r) => (r.checked = r.value === state.brain));
+  $("brainHint").textContent =
+    state.brain === "claude-code"
+      ? state.claudeCode.installed
+        ? `Using your Claude account through Claude Code ${state.claudeCode.installed.version}.${state.connectedChat ? ` Continuing “${state.connectedChat}”.` : ""}`
+        : "Claude Code isn't installed, so this won't work yet. See the Claude Code page."
+      : state.apiKey.source === "none" ? "No API key yet: add one on the API key page." : "";
+
+  // chats
+  renderChats();
 
   // models
   $("models").innerHTML = "";
@@ -134,6 +146,53 @@ function render() {
   if (document.activeElement !== $("ccFolder")) $("ccFolder").value = cc.folder;
   document.querySelectorAll('input[name="ccMode"]').forEach((r) => (r.checked = r.value === cc.permissionMode));
 }
+
+// ---------------------------------------------------------------- brain & chats
+document.querySelectorAll('input[name="brain"]').forEach((r) =>
+  r.addEventListener("change", async () => {
+    state = await api.set("brain", r.value);
+    render();
+    react("model-switch");
+  })
+);
+
+function renderChats() {
+  const list = $("chatList");
+  list.innerHTML = "";
+  if (!state.chats.length) {
+    list.innerHTML = `<div class="mcp-empty">No Claude Code chats found on this Mac yet.</div>`;
+    return;
+  }
+  for (const c of state.chats) {
+    const el = document.createElement("div");
+    const on = state.brain === "claude-code" && state.connectedChat === c.title;
+    el.className = "chat" + (on ? " on" : "");
+    el.innerHTML = `<b></b><button></button><div class="meta"></div><div class="preview"></div>`;
+    el.querySelector("b").textContent = c.title;
+    el.querySelector(".meta").textContent = `${c.project} · ${c.source} · ${c.ago}`;
+    el.querySelector(".preview").textContent = c.lastReply || "";
+    const btn = el.querySelector("button");
+    btn.textContent = on ? "Continuing" : "Continue with Clawd";
+    btn.className = on ? "ghost" : "primary";
+    btn.disabled = on;
+    btn.addEventListener("click", async () => {
+      const res = await api.connectChat(c.sessionId);
+      state = res.state;
+      render();
+      react(res.ok ? "resume" : "sorry");
+    });
+    list.append(el);
+  }
+}
+$("chatRefresh").addEventListener("click", async () => {
+  state = await api.state();
+  render();
+});
+$("chatFresh").addEventListener("click", async () => {
+  state = await api.freshChat();
+  render();
+  react("session-start");
+});
 
 // ---------------------------------------------------------------- general
 $("autoApprove").addEventListener("change", async (e) => {

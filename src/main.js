@@ -6,6 +6,11 @@ const { pathToFileURL } = require("url");
 const Anthropic = require("@anthropic-ai/sdk").default;
 const { Agent, captureScreen, MODELS, DEFAULT_MODEL } = require("./agent");
 const { slackTest, findClaudeCode } = require("./integrations");
+const { listChats, timeAgo } = require("./claude-chats");
+
+// Where Clawd's thinking comes from: the Claude API (an API key) or the user's own Claude Code,
+// signed in with their Claude account.
+const BRAINS = { api: "Claude API (API key)", "claude-code": "Claude app account (via Claude Code)" };
 
 const ROOT = path.join(__dirname, "..");
 const SHORTCUT = "CommandOrControl+Shift+Space";
@@ -32,6 +37,7 @@ let settings = {
   flipped: false,
   scale: 2,
   model: DEFAULT_MODEL,
+  brain: "api",
   slack: null, // {tokenEnc, team, user}
   mcpServers: [], // [{name, url, tokenEnc, enabled}]
   claudeCode: { enabled: false, folder: path.join(os.homedir(), "Clawd Projects"), permissionMode: "acceptEdits" },
@@ -61,6 +67,31 @@ function loadSettings() {
   settings.claudeCode = { enabled: false, folder: path.join(os.homedir(), "Clawd Projects"), permissionMode: "acceptEdits", ...(settings.claudeCode || {}) };
   if (!PERMISSION_MODES.includes(settings.claudeCode.permissionMode)) settings.claudeCode.permissionMode = "acceptEdits";
   if (!Array.isArray(settings.mcpServers)) settings.mcpServers = [];
+  if (!BRAINS[settings.brain]) settings.brain = "api";
+}
+
+function setBrain(brain) {
+  if (!BRAINS[brain] || settings.brain === brain) return;
+  settings.brain = brain;
+  saveSettings();
+  if (agent) agent.newChat(); // the two brains don't share a conversation
+  send("brain", { brain, label: BRAINS[brain], ready: brain === "api" ? !!getApiKey() : !!claudeInfo });
+  refreshMenus();
+}
+
+// Pick up one of the user's Claude Code chats (Claude app Code tab or terminal).
+function connectChat(sessionId) {
+  const chat = listChats(50).find((c) => c.sessionId === sessionId);
+  if (!chat) return false;
+  if (settings.brain !== "claude-code") {
+    settings.brain = "claude-code";
+    saveSettings();
+  }
+  agent.connectChat(chat);
+  if (win && !win.isVisible()) win.showInactive();
+  send("chat-connected", { title: chat.title, project: chat.project, source: chat.source, lastReply: chat.lastReply });
+  refreshMenus();
+  return true;
 }
 
 // What the agent can use right now, with secrets decrypted.
@@ -228,6 +259,23 @@ function buildMenu() {
     { label: "New chat", click: () => newChat() },
     { type: "separator" },
     {
+      label: `Brain: ${settings.brain === "api" ? "API key" : "Claude account"}`,
+      submenu: [
+        { label: BRAINS.api, type: "radio", checked: settings.brain === "api", click: () => setBrain("api") },
+        {
+          label: BRAINS["claude-code"] + (claudeInfo ? "" : " — Claude Code not found"),
+          type: "radio",
+          checked: settings.brain === "claude-code",
+          enabled: !!claudeInfo || settings.brain === "claude-code",
+          click: () => setBrain("claude-code"),
+        },
+      ],
+    },
+    {
+      label: "Continue a Claude chat",
+      submenu: chatMenuItems(),
+    },
+    {
       label: `Model: ${MODELS[settings.model].label}`,
       submenu: Object.entries(MODELS).map(([id, m]) => ({
         label: `${m.label} — ${m.blurb}`,
@@ -282,6 +330,27 @@ function buildMenu() {
     { label: "Quit Clawd Buddy", accelerator: "Command+Q", click: () => app.quit() },
   ]);
 }
+function chatMenuItems() {
+  let chats = [];
+  try {
+    chats = listChats(12);
+  } catch {}
+  const current = agent && agent.ccBrain.title;
+  const items = chats.map((c) => ({
+    label: `${c.title.length > 48 ? c.title.slice(0, 47) + "…" : c.title}   ·  ${c.project} · ${timeAgo(c.updatedAt)}`,
+    type: "checkbox",
+    checked: settings.brain === "claude-code" && current === c.title,
+    click: () => connectChat(c.sessionId),
+  }));
+  if (!items.length) items.push({ label: "No Claude Code chats found", enabled: false });
+  items.push(
+    { type: "separator" },
+    { label: "Only chats from the Claude app's Code tab and Claude Code appear here", enabled: false },
+    { label: "More chats…", click: () => openCompanion("chats") }
+  );
+  return items;
+}
+
 function refreshMenus() {
   if (tray) tray.setContextMenu(buildMenu());
   sendCompanionState();
@@ -338,7 +407,14 @@ function companionState() {
   const key = dec(settings.apiKeyEnc);
   const envKey = process.env.ANTHROPIC_API_KEY;
   const k = key || envKey;
+  let chats = [];
+  try {
+    chats = listChats(30).map((c) => ({ ...c, ago: timeAgo(c.updatedAt) }));
+  } catch {}
   return {
+    brain: settings.brain,
+    chats,
+    connectedChat: settings.brain === "claude-code" && agent ? agent.ccBrain.title : null,
     models: Object.entries(MODELS).map(([id, m]) => ({ id, label: m.label, blurb: m.blurb })),
     model: settings.model,
     scales: SCALES.map((s) => ({ value: s, label: SIZE_NAMES[s] })),
@@ -416,6 +492,7 @@ app.whenReady().then(() => {
     getModel: () => settings.model,
     setModel,
     getIntegrations,
+    getBrain: () => settings.brain,
     openCompanion: (section) => openCompanion(section),
     requestApproval,
     takeScreenshot: async () => {
@@ -440,7 +517,8 @@ app.whenReady().then(() => {
   tray.setToolTip("Clawd Buddy");
   refreshMenus();
   globalShortcut.register(SHORTCUT, toggleInput);
-  detectClaudeCode();
+  detectClaudeCode().then(refreshMenus);
+  setInterval(refreshMenus, 60000); // keeps the menu-bar menu's chat list fresh
   if (process.argv.includes("--companion")) openCompanion();
 });
 
@@ -454,6 +532,7 @@ app.on("window-all-closed", () => app.quit());
 ipcMain.handle("init", () => ({
   sets,
   hasKey: !!getApiKey(),
+  brain: settings.brain,
   autoApprove: settings.autoApprove,
   flipped: !!settings.flipped,
   scale: settings.scale,
@@ -491,7 +570,8 @@ ipcMain.handle("c:set", (_e, { key, value }) => {
   if (key === "model" && MODELS[value]) {
     setModel(value);
     send("model", { model: value, label: MODELS[value].label, by: "menu" });
-  } else if (key === "scale") setScale(Number(value));
+  } else if (key === "brain") setBrain(value);
+  else if (key === "scale") setScale(Number(value));
   else if (key === "autoApprove") {
     settings.autoApprove = !!value;
     saveSettings();
@@ -512,6 +592,14 @@ ipcMain.handle("c:apiKey:save", async (_e, key) => {
   return { ok: true };
 });
 ipcMain.handle("c:apiKey:test", () => testApiKey(getApiKey()));
+ipcMain.handle("c:chat:connect", (_e, sessionId) => ({ ok: connectChat(String(sessionId)), state: companionState() }));
+ipcMain.handle("c:chat:fresh", () => {
+  if (settings.brain !== "claude-code") setBrain("claude-code");
+  else agent.newChat();
+  send("new-chat");
+  refreshMenus();
+  return companionState();
+});
 ipcMain.handle("c:apiKey:remove", () => {
   settings.apiKeyEnc = null;
   saveSettings();

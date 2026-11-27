@@ -34,7 +34,7 @@ const PET_REACTIONS = ["idle-heart", "hello", "great-question", "right", "idle-j
   player.preload(["idle", "idle-doze", "hello", "prompt", "thinking", "bash", "permission", "done", "idle-yawn"]);
   player.react("hello");
   setTimeout(() => effect("sparkles"), 700);
-  if (!init.hasKey) {
+  if (!init.hasKey && init.brain === "api") {
     setTimeout(() => showKeyForm("Hi! I'm Clawd 👋 Paste your Anthropic API key so I can think and help you out."), 1600);
   } else {
     setTimeout(() => say(`Hi! Click me or press ${init.shortcut} to chat. Drag me anywhere, right-click for options.`, { fade: 9000 }), 1600);
@@ -59,6 +59,25 @@ window.buddy.on((msg) => {
     case "layout": return applyLayout(msg);
     case "model": return onModel(msg);
     case "context": return onContext(msg);
+    case "brain":
+      keyForm.classList.add("hidden");
+      player.setMode(null);
+      player.react("model-switch", { front: true });
+      effect("sparkles");
+      return say(
+        msg.brain === "api"
+          ? msg.ready ? "Thinking with the Claude API key now. 🔑" : "Switched to the Claude API, but I need a key: right-click › Set API key…"
+          : msg.ready ? "Thinking with your Claude account now (through Claude Code)! 🧠" : "I can't find Claude Code on this Mac, so I can't use your Claude account yet.",
+        { fade: 7000 }
+      );
+    case "chat-connected": {
+      wake();
+      player.react("resume", { front: true });
+      effect("sparkles");
+      const preview = msg.lastReply ? `\n\nLast time: “${msg.lastReply.length > 160 ? msg.lastReply.slice(0, 157) + "…" : msg.lastReply}”` : "";
+      say(`🔗 Picking up “${msg.title}” (${msg.project}). I'll continue it in a copy, so the original chat stays as it was. What's next?${preview}`);
+      return toggleInput(true);
+    }
     case "progress":
       thought.textContent = "⌨︎ " + msg.text;
       thought.classList.remove("hidden");
@@ -184,7 +203,8 @@ function onApproval({ id, kind, detail }) {
   $("approvalTitle").textContent =
     kind === "screenshot" ? "Can I look at your screen?" :
     kind === "slack" ? "Can I send this Slack message?" :
-    kind === "claude-code" ? "Can I start Claude Code on this?" : "Can I run this?";
+    kind === "claude-code" ? "Can I start Claude Code on this?" :
+    kind === "claude-code-tool" ? "Can I do this?" : "Can I run this?";
   $("alwaysBtn").classList.toggle("hidden", kind === "slack"); // messages are approved one at a time
   $("approvalDetail").textContent = detail;
   approval.classList.remove("hidden");

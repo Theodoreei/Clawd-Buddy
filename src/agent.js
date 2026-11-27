@@ -8,6 +8,7 @@ const path = require("path");
 const Anthropic = require("@anthropic-ai/sdk").default;
 const { z } = require("zod");
 const { Shell } = require("./shell");
+const { ClaudeCodeBrain } = require("./cc-brain");
 const {
   SLACK_TOOLS,
   Slack,
@@ -18,7 +19,7 @@ const {
   expandHome,
 } = require("./integrations");
 
-const COMPANION_SECTIONS = ["general", "api-key", "connections", "claude-code"];
+const COMPANION_SECTIONS = ["general", "api-key", "connections", "chats", "claude-code"];
 
 // Models Clawd can switch between. Per-model request differences live here.
 const MODELS = {
@@ -202,6 +203,7 @@ class Agent extends EventEmitter {
     this.sets = opts.sets;
     this.system = buildSystemPrompt(opts.sets);
     this.shell = new Shell();
+    this.ccBrain = new ClaudeCodeBrain(this);
     this.messages = [];
     this.busy = false;
     this.alwaysAllow = false;
@@ -223,11 +225,13 @@ class Agent extends EventEmitter {
     this.messages = [];
     this.alwaysAllow = false;
     this.shell.kill();
+    this.ccBrain.reset();
   }
 
   stop() {
     if (this.abortController) this.abortController.abort();
     this.shell.interrupt();
+    this.ccBrain.stop();
   }
 
   client() {
@@ -256,7 +260,7 @@ class Agent extends EventEmitter {
       {
         name: "open_companion",
         description:
-          "Open Clawd's companion app window, optionally at a section: general (model, size, approvals, open at login), api-key, connections (Slack and other apps), claude-code (let Clawd code with Claude Code).",
+          "Open Clawd's companion app window, optionally at a section: general (model, size, approvals, open at login), api-key, connections (Slack and other apps), chats (continue a Claude Code chat from the Claude app), claude-code (let Clawd code with Claude Code).",
         input_schema: {
           type: "object",
           properties: { section: { type: "string", enum: COMPANION_SECTIONS } },
@@ -316,8 +320,69 @@ class Agent extends EventEmitter {
     }
   }
 
+  // Streams reply text to the bubble, acting out [[tags]]; code blocks switch Clawd to "writing".
+  makeParser() {
+    let fences = 0;
+    return new TagParser(
+      this.sets,
+      (t) => {
+        const n = (t.match(/```/g) || []).length;
+        if (n) {
+          const wasInCode = fences % 2 === 1;
+          fences += n;
+          const inCode = fences % 2 === 1;
+          if (inCode !== wasInCode) this.activity(inCode ? "writing" : "thinking");
+        }
+        this.emit("text", t);
+      },
+      (anim, effect) => this.emit("emote", { anim, effect })
+    );
+  }
+
+  brain() {
+    return this.opts.getBrain ? this.opts.getBrain() : "api";
+  }
+
+  // Continue one of the user's Claude Code chats (switches nothing else; main sets the brain).
+  connectChat(info) {
+    this.stop();
+    this.messages = [];
+    this.ccBrain.connect(info);
+  }
+
+  async sendViaClaudeCode(text) {
+    const integ = this.integrations();
+    if (!integ.claudeCode.path) {
+      this.emit("error", { anim: "offline", message: "I can't find Claude Code on this Mac. Install it, or switch my brain back to the API key (right-click me)." });
+      return;
+    }
+    this.busy = true;
+    this.abortController = new AbortController();
+    const signal = this.abortController.signal;
+    this.emit("turn-start");
+    this.activity("prompt", true);
+    this.activity("thinking");
+    try {
+      const res = await this.ccBrain.run(text, {
+        claudePath: integ.claudeCode.path,
+        model: this.model(),
+        folder: integ.claudeCode.folder,
+        mcpServers: integ.mcpServers,
+        signal,
+        parser: this.makeParser(),
+        onApproval: (kind, detail) => this.approve(kind, detail),
+      });
+      this.emit("turn-end", { ok: res.ok, usedTools: res.usedTools });
+      if (!res.ok) this.emit("error", res.error);
+    } finally {
+      this.busy = false;
+      this.abortController = null;
+    }
+  }
+
   async send(text) {
     if (this.busy) return;
+    if (this.brain() === "claude-code") return this.sendViaClaudeCode(text);
     const client = this.client();
     if (!client) {
       this.emit("need-key");
@@ -337,22 +402,7 @@ class Agent extends EventEmitter {
     const clearThinkTimers = () => thinkTimers.splice(0).forEach(clearTimeout);
     try {
       while (true) {
-        // Code blocks in the reply mean Clawd is writing code: switch to "writing" while inside one.
-        let fences = 0;
-        const parser = new TagParser(
-          this.sets,
-          (t) => {
-            const n = (t.match(/```/g) || []).length;
-            if (n) {
-              const wasInCode = fences % 2 === 1;
-              fences += n;
-              const inCode = fences % 2 === 1;
-              if (inCode !== wasInCode) this.activity(inCode ? "writing" : "thinking");
-            }
-            this.emit("text", t);
-          },
-          (anim, effect) => this.emit("emote", { anim, effect })
-        );
+        const parser = this.makeParser();
         // The first request starts with "thinking". Later ones keep the last task's animation
         // while Claude reads its result, so Clawd doesn't flick back and forth between steps.
         if (first) this.activity("thinking");

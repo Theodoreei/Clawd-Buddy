@@ -18,6 +18,7 @@
       <button data-tab="general" class="active"><span class="ico">⚙︎</span>General</button>
       <button data-tab="api-key"><span class="ico">🔑</span>API key</button>
       <button data-tab="connections"><span class="ico">🔌</span>Connections</button>
+      <button data-tab="chats"><span class="ico">💬</span>Claude chats</button>
       <button data-tab="claude-code"><span class="ico">⌨︎</span>Claude Code</button>
       <button data-tab="about"><span class="ico">ⓘ</span>About</button>
     </nav>
@@ -30,6 +31,13 @@
     <section id="general" class="tab active">
       <h1>General</h1>
       <p class="lead">How Clawd thinks, how big he is, and how much he asks first.</p>
+
+      <h2>Brain</h2>
+      <div class="cards" id="brains">
+        <label class="card"><input type="radio" name="brain" value="api" /><b>Claude API</b><small>Uses your Anthropic API key and API billing. Slack and all of Clawd's own tools work here.</small></label>
+        <label class="card"><input type="radio" name="brain" value="claude-code" /><b>Claude account</b><small>Thinks through Claude Code, signed in with your Claude account (your Claude plan's usage). Can continue your Claude Code chats.</small></label>
+      </div>
+      <p class="hint" id="brainHint"></p>
 
       <h2>Model</h2>
       <div id="models" class="cards"></div>
@@ -117,6 +125,18 @@
         <div class="msg" id="mcpMsg"></div>
         <p class="hint">Paste the app's remote MCP URL (https) and, if it needs one, an access token. Claude calls these servers directly, so their actions run without Clawd asking first: only connect apps you trust.</p>
       </div>
+    </section>
+
+    <!-- Claude chats -->
+    <section id="chats" class="tab">
+      <h1>Claude chats</h1>
+      <p class="lead">Pick up a chat from the Claude app's Code tab or from Claude Code, and keep going with Clawd. He continues it in a copy, so the original chat is never changed.</p>
+      <div class="btn-row">
+        <button id="chatFresh">Start a fresh chat with my Claude account</button>
+        <button id="chatRefresh" class="ghost">Refresh</button>
+      </div>
+      <div id="chatList" class="chat-list"></div>
+      <p class="hint">Conversations from the Claude app's Chat tab are stored on Anthropic's servers, and apps can't read them, so only Code-tab and Claude Code chats appear here. Continuing a chat switches Clawd's brain to your Claude account.</p>
     </section>
 
     <!-- Claude Code -->

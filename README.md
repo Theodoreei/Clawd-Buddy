@@ -43,6 +43,28 @@ The first time, Clawd asks for your API key. It's stored encrypted with the macO
 Clicks go straight through the clear parts of his window to whatever is behind it.
 With nothing to do, he falls asleep; anything you ask wakes him up.
 
+## Two brains: API key or your Claude account
+
+Right-click Clawd › **Brain** (or the companion's General page) to choose how he thinks:
+
+- **Claude API (API key):** uses your Anthropic API key and API billing. All of Clawd's own tools
+  work, including Slack and model switching by asking.
+- **Claude account (via Claude Code):** Clawd thinks through your installed
+  [Claude Code](https://code.claude.com/docs/en/quickstart), signed in with your Claude account, so
+  it uses your Claude plan instead of an API key. Anything risky Claude Code wants to do still comes
+  to Clawd's Allow / Deny bubble. App servers from the companion are passed along; Slack isn't
+  available in this mode.
+
+### Continue your Claude chats
+
+Right-click Clawd › **Continue a Claude chat** (or the companion's **Claude chats** page) lists your
+recent chats from the Claude app's **Code** tab and from Claude Code, with the same titles as in the
+app. Pick one and Clawd picks up where it left off, in that chat's project folder. He continues it
+in a copy (`--fork-session`), so the original chat is never changed.
+
+Conversations from the Claude app's **Chat** tab are stored on Anthropic's servers and apps can't
+read them, so only Code-tab and Claude Code chats are listed.
+
 ## The companion app
 
 Right-click Clawd › **Open Companion…**, press **⌘,**, or ask him to open it.
@@ -106,7 +128,9 @@ table in `src/agent.js`.
 ```
 src/main.js              windows, menu-bar icon, settings, IPC (Electron main process)
 src/agent.js             the Claude tool-use loop, tools, and which animation goes with each task
-src/integrations.js      Slack and Claude Code
+src/integrations.js      Slack and Claude Code (as a coding tool)
+src/cc-brain.js          the "Claude account" brain: Clawd thinking through Claude Code
+src/claude-chats.js      lists the Claude Code chats saved on this Mac
 src/shell.js             persistent bash session
 src/renderer/            Clawd's window: player.js (GIF clip player), renderer.js (UI and personality)
 src/companion/           the companion app
