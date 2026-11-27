@@ -310,6 +310,16 @@ class Agent extends EventEmitter {
     ];
   }
 
+  // Removes thinking blocks from earlier assistant turns. An assistant turn left with nothing
+  // (it was only thinking) gets a tiny placeholder so the history stays valid.
+  stripThinking() {
+    for (const m of this.messages) {
+      if (m.role !== "assistant" || !Array.isArray(m.content)) continue;
+      const kept = m.content.filter((b) => b.type !== "thinking" && b.type !== "redacted_thinking");
+      m.content = kept.length ? kept : [{ type: "text", text: "…" }];
+    }
+  }
+
   pushUser(content) {
     const last = this.messages[this.messages.length - 1];
     const blocks = typeof content === "string" ? [{ type: "text", text: content }] : content;
@@ -400,6 +410,7 @@ class Agent extends EventEmitter {
     let retries = 0;
     let usedTools = false;
     let first = true;
+    let strippedThinking = false;
     const thinkTimers = [];
     const clearThinkTimers = () => thinkTimers.splice(0).forEach(clearTimeout);
     try {
@@ -423,11 +434,15 @@ class Agent extends EventEmitter {
           ],
           tools: this.tools(cfg, integ),
           messages: this.messages,
-          thinking: { type: "adaptive", display: "summarized" },
+          // Claude's earlier thinking is bound to the conversation it was made in, tools included.
+          // Connecting an app or changing models mid-chat changes the tools, so let the API drop the
+          // reasoning it can no longer verify instead of rejecting the request. That only happens at
+          // the turn where something changed, so it costs little.
+          thinking: { type: "adaptive", display: "summarized", block_binding: { prefix_mismatch_behavior: "drop_block" } },
           output_config: { effort: cfg.effort },
           cache_control: { type: "ephemeral" },
         };
-        const betas = [];
+        const betas = ["thinking-binding-controls-2026-08-01"];
         if (cfg.fallbacks) {
           // If a safety classifier declines, the API retries on a suitable fallback model.
           betas.push("server-side-fallback-2026-07-01");
@@ -483,6 +498,13 @@ class Agent extends EventEmitter {
         } catch (err) {
           if (signal.aborted) throw err;
           // Unparseable streamed tool input or a dropped connection: re-issue the turn a couple of times.
+          // Backstop: if earlier thinking is still rejected as bound to another conversation, remove
+          // the old thinking blocks from the history (the documented manual fix) and retry once.
+          if (err instanceof Anthropic.BadRequestError && /thinking/i.test(err.message) && /signature|bound to a different conversation/i.test(err.message) && !strippedThinking) {
+            strippedThinking = true;
+            this.stripThinking();
+            continue;
+          }
           if (err instanceof Anthropic.APIError || retries++ >= 2) throw err;
           continue;
         } finally {
