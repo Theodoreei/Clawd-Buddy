@@ -24,7 +24,7 @@ npx @electron/packager . "$APP_NAME" \
   --app-bundle-id=com.clawdbuddy.app \
   --extend-info=build/extra-info.plist \
   --out=dist --overwrite \
-  --ignore='^/dist' --ignore='^/build' --ignore='^/scripts' --ignore='\.command$'
+  --ignore='^/dist' --ignore='^/release' --ignore='^/build' --ignore='^/scripts' --ignore='\.command$'
 
 APP="dist/$APP_NAME-darwin-$ARCH/$APP_NAME.app"
 echo "→ Signing (ad-hoc, so macOS will run it on this Mac)"
