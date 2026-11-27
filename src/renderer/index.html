@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' app:; img-src 'self' app: data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' app:; connect-src 'self' app:" />
+  <title>Clawd Buddy</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="bubble" class="bubble hidden" data-hit>
+    <button id="closeBubble" class="close" type="button" title="Dismiss" aria-label="Dismiss">×</button>
+    <div id="thought" class="thought hidden"></div>
+    <div id="reply" class="reply"></div>
+    <div id="tools" class="tools"></div>
+    <div id="approval" class="approval hidden">
+      <div class="approval-title" id="approvalTitle">Can I run this?</div>
+      <pre id="approvalDetail"></pre>
+      <div class="btns">
+        <button id="allowBtn" class="primary">Allow <kbd>⏎</kbd></button>
+        <button id="alwaysBtn">Allow all this chat</button>
+        <button id="denyBtn" class="ghost">Deny <kbd>esc</kbd></button>
+      </div>
+    </div>
+    <form id="keyForm" class="keyform hidden">
+      <input id="keyInput" type="password" placeholder="sk-ant-…" autocomplete="off" spellcheck="false" />
+      <div class="hint">Stored encrypted with your macOS Keychain, only on this Mac.</div>
+      <div class="btns"><button class="primary" type="submit">Save key</button><button id="keyCancel" type="button" class="ghost">Later</button></div>
+    </form>
+  </div>
+  <div id="tail" class="bubble-tail hidden"></div>
+
+  <div id="stage" class="stage" data-hit-canvas>
+    <canvas id="clawd" width="192" height="64"></canvas>
+    <div id="fx" class="fx"></div>
+  </div>
+
+  <form id="inputRow" class="input-row hidden" data-hit>
+    <input id="prompt" type="text" placeholder="Ask Clawd to do something…" autocomplete="off" spellcheck="false" />
+    <button id="sendBtn" type="submit" title="Send">➤</button>
+  </form>
+
+  <script src="player.js"></script>
+  <script src="renderer.js"></script>
+</body>
+</html>

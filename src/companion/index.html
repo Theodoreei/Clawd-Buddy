@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' app:; img-src 'self' app: data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' app:; connect-src 'self' app:" />
+  <title>Clawd Companion</title>
+  <link rel="stylesheet" href="companion.css" />
+</head>
+<body>
+  <aside class="side">
+    <div class="drag"></div>
+    <div class="buddy">
+      <canvas id="clawd" width="192" height="64"></canvas>
+      <div class="buddy-name">Clawd Companion</div>
+      <div class="buddy-sub" id="modelLine"></div>
+    </div>
+    <nav>
+      <button data-tab="general" class="active"><span class="ico">⚙︎</span>General</button>
+      <button data-tab="api-key"><span class="ico">🔑</span>API key</button>
+      <button data-tab="connections"><span class="ico">🔌</span>Connections</button>
+      <button data-tab="claude-code"><span class="ico">⌨︎</span>Claude Code</button>
+      <button data-tab="about"><span class="ico">ⓘ</span>About</button>
+    </nav>
+  </aside>
+
+  <main>
+    <div class="drag"></div>
+
+    <!-- General -->
+    <section id="general" class="tab active">
+      <h1>General</h1>
+      <p class="lead">How Clawd thinks, how big he is, and how much he asks first.</p>
+
+      <h2>Model</h2>
+      <div id="models" class="cards"></div>
+      <p class="hint">You can also just ask Clawd: “switch to Sonnet”.</p>
+
+      <h2>Size</h2>
+      <div id="sizes" class="segmented"></div>
+      <p class="hint">Or press ⌘+ / ⌘− while Clawd is focused, or pinch on him with the trackpad.</p>
+
+      <h2>Behavior</h2>
+      <label class="row toggle">
+        <span><b>Auto-approve commands</b><small>Run shell commands and Claude Code tasks without asking first. Slack messages always ask.</small></span>
+        <input type="checkbox" id="autoApprove" />
+      </label>
+      <label class="row toggle">
+        <span><b>Open at login</b><small>Start Clawd when you log in to your Mac.</small></span>
+        <input type="checkbox" id="openAtLogin" />
+      </label>
+
+      <h2>Shortcuts</h2>
+      <div class="kbd-list">
+        <div><kbd id="shortcut">⌘⇧Space</kbd> talk to Clawd</div>
+        <div><kbd>⌘,</kbd> open this window</div>
+        <div><kbd>esc</kbd> stop a task</div>
+        <div><kbd>⌘N</kbd> new chat</div>
+      </div>
+    </section>
+
+    <!-- API key -->
+    <section id="api-key" class="tab">
+      <h1>API key</h1>
+      <p class="lead">Clawd thinks with the Claude API. Your key is stored encrypted with the macOS Keychain, only on this Mac.</p>
+
+      <div class="status-card" id="keyStatus"></div>
+
+      <h2>Change key</h2>
+      <form id="keyForm" class="inline-form">
+        <input id="keyInput" type="password" placeholder="sk-ant-…" autocomplete="off" spellcheck="false" />
+        <button class="primary" type="submit">Save key</button>
+      </form>
+      <div class="msg" id="keyMsg"></div>
+      <div class="btn-row">
+        <button id="testKey">Test current key</button>
+        <button id="removeKey" class="danger ghost">Remove saved key</button>
+        <a href="#" data-ext="https://console.anthropic.com/settings/keys">Get a key ↗</a>
+      </div>
+    </section>
+
+    <!-- Connections -->
+    <section id="connections" class="tab">
+      <h1>Connections</h1>
+      <p class="lead">Link Clawd to your apps so he can read and act in them.</p>
+
+      <div class="conn-card">
+        <div class="conn-head">
+          <div class="conn-logo slack">#</div>
+          <div><b>Slack</b><small id="slackStatus">Not connected</small></div>
+          <button id="slackDisconnect" class="ghost hidden">Disconnect</button>
+        </div>
+        <div id="slackConnect">
+          <ol class="steps">
+            <li>Create a Slack app at <a href="#" data-ext="https://api.slack.com/apps">api.slack.com/apps</a> (From scratch).</li>
+            <li>Under <i>OAuth &amp; Permissions</i>, add scopes: <code>channels:read</code>, <code>channels:history</code>, <code>groups:read</code>, <code>groups:history</code>, <code>chat:write</code>, <code>users:read</code> (and <code>search:read</code> as a user scope to search).</li>
+            <li>Install it to your workspace and paste the <b>User</b> token (<code>xoxp-…</code>, posts as you) or <b>Bot</b> token (<code>xoxb-…</code>, posts as the app).</li>
+          </ol>
+          <form id="slackForm" class="inline-form">
+            <input id="slackToken" type="password" placeholder="xoxp-… or xoxb-…" autocomplete="off" spellcheck="false" />
+            <button class="primary" type="submit">Connect</button>
+          </form>
+          <div class="msg" id="slackMsg"></div>
+        </div>
+        <p class="hint">Clawd can list channels, read and search messages, and send messages. He always asks before sending.</p>
+      </div>
+
+      <div class="conn-card">
+        <div class="conn-head">
+          <div class="conn-logo mcp">⇄</div>
+          <div><b>Other apps (MCP servers)</b><small>Notion, Linear, GitHub, Asana, Atlassian and more publish remote MCP servers.</small></div>
+        </div>
+        <div id="mcpList" class="mcp-list"></div>
+        <div class="btn-row">
+          <button id="mcpAdd">+ Add app server</button>
+          <button id="mcpSave" class="primary">Save apps</button>
+        </div>
+        <div class="msg" id="mcpMsg"></div>
+        <p class="hint">Paste the app's remote MCP URL (https) and, if it needs one, an access token. Claude calls these servers directly, so their actions run without Clawd asking first: only connect apps you trust.</p>
+      </div>
+    </section>
+
+    <!-- Claude Code -->
+    <section id="claude-code" class="tab">
+      <h1>Claude Code</h1>
+      <p class="lead">Let Clawd hand coding jobs to Claude Code: building apps and scripts, editing projects, fixing bugs, running tests.</p>
+
+      <div class="status-card" id="ccStatus"></div>
+
+      <label class="row toggle">
+        <span><b>Let Clawd code with Claude Code</b><small>Clawd asks before starting each coding task (unless auto-approve is on).</small></span>
+        <input type="checkbox" id="ccEnabled" />
+      </label>
+
+      <h2>Projects folder</h2>
+      <div class="inline-form">
+        <input id="ccFolder" type="text" spellcheck="false" />
+        <button id="ccPick">Choose…</button>
+      </div>
+      <p class="hint">Where new projects go when you don't name a folder. You can also say “in ~/Code/my-app”.</p>
+
+      <h2>What Claude Code may do on its own</h2>
+      <div class="cards" id="ccModes">
+        <label class="card"><input type="radio" name="ccMode" value="acceptEdits" /><b>Edit files</b><small>Creates and edits files in the folder; asks for nothing else, so commands it can't run get skipped.</small></label>
+        <label class="card"><input type="radio" name="ccMode" value="auto" /><b>Auto</b><small>Also runs commands it judges safe, like installs, builds and tests. Best for building whole apps.</small></label>
+        <label class="card"><input type="radio" name="ccMode" value="plan" /><b>Plan only</b><small>Reads the code and writes a plan, without changing anything.</small></label>
+      </div>
+      <p class="hint">Claude Code uses its own sign-in (your Claude subscription or its API key), not Clawd's key.</p>
+    </section>
+
+    <!-- About -->
+    <section id="about" class="tab">
+      <h1>About Clawd Buddy</h1>
+      <p class="lead">An animated pixel buddy who lives on your desktop and gets things done with Claude.</p>
+      <p>Animations: <a href="#" data-ext="https://codechrisb.github.io/MyClawd/">MyClawd</a> by CodeChrisB, a fan project, free for fun and non-commercial use.</p>
+      <p>Clawd, Claude and Claude Code are Anthropic's names and marks. Clawd Buddy is an unofficial fan project.</p>
+      <p class="hint" id="version"></p>
+    </section>
+  </main>
+
+  <script src="../renderer/player.js"></script>
+  <script src="companion.js"></script>
+</body>
+</html>
