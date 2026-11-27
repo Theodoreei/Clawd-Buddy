@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld("companion", {
   connectLinear: (key) => ipcRenderer.invoke("c:linear:connect", key),
   disconnectApp: (name) => ipcRenderer.invoke("c:app:disconnect", name),
   setAppReadOnly: (name, value) => ipcRenderer.invoke("c:app:readOnly", { name, value }),
+  setWatch: (service, key, value) => ipcRenderer.invoke("c:watch:set", { service, key, value }),
   setClaudeCode: (patch) => ipcRenderer.invoke("c:cc:set", patch),
   pickFolder: () => ipcRenderer.invoke("c:cc:pickFolder"),
   detectClaudeCode: () => ipcRenderer.invoke("c:cc:detect"),

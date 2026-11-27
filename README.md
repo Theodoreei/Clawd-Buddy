@@ -81,6 +81,14 @@ Right-click Clawd › **Open Companion…**, press **⌘,**, or ask him to open 
   - GitHub and Linear each have a **Read-only** switch. With the Claude API brain, Clawd says what
     he'll change and waits for your OK in the chat; with the Claude account brain, each change comes
     to his Allow / Deny bubble.
+  - **Notification summaries** (off until you turn them on, on each card):
+    - **Slack › Summarize new messages:** when someone DMs you (and, optionally, @mentions you in a
+      channel), Clawd wakes up, plays a reaction and sums it up in his bubble with links to open each
+      message. Checks every minute; needs a Slack **User** token with `search:read`.
+    - **Linear › Tell me about new assignments:** when an issue is assigned to you, Clawd sums it up
+      with a link to the issue. Checks every 2 minutes.
+    - Summaries use whichever brain you picked; they're separate from your chat with Clawd. If
+      he's busy with a task, they wait until he's done.
   - **Slack:** paste a Slack token (setup steps are in the app). Clawd can list channels, read and
     search messages, and send messages. He always asks before sending.
   - **Other apps (MCP servers):** add any remote MCP server by URL (and token if it needs one), such as
@@ -139,6 +147,7 @@ src/agent.js             the Claude tool-use loop, tools, and which animation go
 src/integrations.js      Slack and Claude Code (as a coding tool)
 src/cc-brain.js          the "Claude account" brain: Clawd thinking through Claude Code
 src/claude-chats.js      lists the Claude Code chats saved on this Mac
+src/watchers.js          checks Slack and Linear for new messages and assignments
 src/shell.js             persistent bash session
 src/renderer/            Clawd's window: player.js (GIF clip player), renderer.js (UI and personality)
 src/companion/           the companion app

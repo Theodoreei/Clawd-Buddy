@@ -133,6 +133,10 @@
           <span><b>Read-only</b><small>Clawd can search and read issues, projects and docs, but can't change anything.</small></span>
           <input type="checkbox" />
         </label>
+        <label class="row toggle hidden" id="linearWatch">
+          <span><b>Tell me about new assignments</b><small id="linearWatchStatus">When an issue is assigned to you, Clawd wakes up and sums it up. Checks every 2 minutes.</small></span>
+          <input type="checkbox" />
+        </label>
         <div class="msg" id="linearMsg"></div>
         <p class="hint">Uses Linear's official MCP server: issues, projects, cycles, comments, docs.</p>
       </div>
@@ -150,6 +154,7 @@
             <li>Create a Slack app at <a href="#" data-ext="https://api.slack.com/apps">api.slack.com/apps</a> (From scratch).</li>
             <li>Under <i>OAuth &amp; Permissions</i>, add scopes: <code>channels:read</code>, <code>channels:history</code>, <code>groups:read</code>, <code>groups:history</code>, <code>chat:write</code>, <code>users:read</code> (and <code>search:read</code> as a user scope to search).</li>
             <li>Install it to your workspace and paste the <b>User</b> token (<code>xoxp-…</code>, posts as you) or <b>Bot</b> token (<code>xoxb-…</code>, posts as the app).</li>
+            <li>For message summaries, use the <b>User</b> token and add <code>search:read</code> under <i>User Token Scopes</i>.</li>
           </ol>
           <form id="slackForm" class="inline-form">
             <input id="slackToken" type="password" placeholder="xoxp-… or xoxb-…" autocomplete="off" spellcheck="false" />
@@ -157,6 +162,14 @@
           </form>
           <div class="msg" id="slackMsg"></div>
         </div>
+        <label class="row toggle hidden" id="slackWatch" style="margin-top:10px">
+          <span><b>Summarize new messages</b><small id="slackWatchStatus">When someone DMs you, Clawd wakes up and sums it up. Checks every minute. Needs a User token with search:read.</small></span>
+          <input type="checkbox" />
+        </label>
+        <label class="row toggle hidden" id="slackMentions">
+          <span><b>Include @mentions in channels</b><small>Also summarize channel messages that mention you.</small></span>
+          <input type="checkbox" />
+        </label>
         <p class="hint">Clawd can list channels, read and search messages, and send messages. He always asks before sending.</p>
       </div>
 

@@ -53,6 +53,38 @@ class ClaudeCodeBrain {
     this.title = title;
   }
 
+  // A one-off answer with no tools and no saved session (used for notification summaries).
+  summarizeOnce(prompt, { claudePath, model }) {
+    return new Promise((resolve, reject) => {
+      const env = { ...process.env, PATH: [...EXTRA_PATH, process.env.PATH || ""].join(":") };
+      delete env.ANTHROPIC_API_KEY;
+      const p = spawn(
+        claudePath,
+        ["-p", prompt, "--output-format", "json", "--model", model, "--permission-prompts", "none", "--no-session-persistence"],
+        { cwd: os.tmpdir(), env, stdio: ["ignore", "pipe", "pipe"] }
+      );
+      let out = "";
+      let err = "";
+      const timer = setTimeout(() => p.kill("SIGTERM"), 120000);
+      p.stdout.on("data", (c) => (out += c));
+      p.stderr.on("data", (c) => (err = (err + c).slice(-2000)));
+      p.on("error", (e) => {
+        clearTimeout(timer);
+        reject(e);
+      });
+      p.on("close", () => {
+        clearTimeout(timer);
+        try {
+          const r = JSON.parse(out);
+          if (r.is_error || !r.result) return reject(new Error(r.result || "Claude Code error"));
+          resolve(String(r.result).trim());
+        } catch {
+          reject(new Error(err.trim() || "Claude Code returned nothing"));
+        }
+      });
+    });
+  }
+
   stop() {
     if (this.proc) {
       try {

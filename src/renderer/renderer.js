@@ -58,6 +58,7 @@ window.buddy.on((msg) => {
     case "new-chat": return onNewChat();
     case "layout": return applyLayout(msg);
     case "model": return onModel(msg);
+    case "notify": return onNotify(msg);
     case "context": return onContext(msg);
     case "brain":
       keyForm.classList.add("hidden");
@@ -250,6 +251,8 @@ function onTurnEnd({ ok, usedTools }) {
   }
   lastInteraction = Date.now();
   scheduleBubbleFade(30000);
+  // Anything that came in while he was working gets shown a moment later.
+  if (notifyQueue.length) setTimeout(flushNotifications, 8000);
 }
 
 function onError({ anim, message }) {
@@ -267,6 +270,55 @@ function onError({ anim, message }) {
   if (anim !== "interrupt") bubble.classList.add("error");
   showBubble();
   scheduleBubbleFade(30000);
+}
+
+// ---------------------------------------------------------------- notifications
+// New Slack messages / Linear assignments, summarized. Held back while Clawd is busy.
+const notifyQueue = [];
+
+function onNotify(n) {
+  notifyQueue.push(n);
+  flushNotifications();
+}
+
+function flushNotifications() {
+  if (!notifyQueue.length || busy || pendingApproval != null || !keyForm.classList.contains("hidden")) return;
+  if (document.activeElement === promptInput && promptInput.value) return; // don't interrupt typing
+  showNotification(notifyQueue.shift());
+  if (notifyQueue.length) setTimeout(flushNotifications, 12000);
+}
+
+function showNotification(n) {
+  wake();
+  const slack = n.source === "slack";
+  // Act out the tag Claude picked, or a sensible default.
+  const tag = n.summary && /\[\[([a-z0-9-]+)(?::([a-z]+))?\]\]/i.exec(n.summary);
+  const anim = tag && player.has(tag[1].toLowerCase()) ? tag[1].toLowerCase() : slack ? "new-mail" : "todo-list";
+  player.react(anim, { front: true });
+  effect((tag && tag[2]) || "exclaim");
+  bump("hop");
+
+  const head = slack
+    ? `📬 Slack · ${n.count === 1 ? "new message" : `${n.count} new messages`}`
+    : `📋 Linear · ${n.count === 1 ? "new assignment" : `${n.count} new assignments`}`;
+  const body = n.summary
+    ? n.summary.replace(/\[\[[^\]]*\]\]/g, "").replace(/[ \t]{2,}/g, " ").trim()
+    : n.items.map((it) => `${it.label}: ${it.text}`).join("\n");
+  say(`**${head}**\n${body}`);
+
+  // Links to open each item (Slack permalinks / Linear issue pages).
+  for (const it of n.items) {
+    if (!it.link || !/^https:\/\//.test(it.link)) continue;
+    const row = document.createElement("div");
+    row.className = "chip";
+    const a = document.createElement("a");
+    a.href = it.link;
+    a.target = "_blank";
+    a.textContent = `Open ${it.label.length > 60 ? it.label.slice(0, 57) + "…" : it.label} ↗`;
+    row.append(a);
+    tools.append(row);
+  }
+  scheduleBubbleFade(45000);
 }
 
 // The conversation's context gauge: react once each time it fills past another quarter.

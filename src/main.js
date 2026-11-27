@@ -7,6 +7,7 @@ const Anthropic = require("@anthropic-ai/sdk").default;
 const { Agent, captureScreen, MODELS, DEFAULT_MODEL } = require("./agent");
 const { slackTest, findClaudeCode } = require("./integrations");
 const { listChats, timeAgo } = require("./claude-chats");
+const { Watchers } = require("./watchers");
 
 // Where Clawd's thinking comes from: the Claude API (an API key) or the user's own Claude Code,
 // signed in with their Claude account.
@@ -41,6 +42,9 @@ let settings = {
   slack: null, // {tokenEnc, team, user}
   github: null, // {tokenEnc, login, readOnly}
   linear: null, // {tokenEnc, name, org, readOnly}
+  // Notification summaries (Connections page): off until the user turns them on.
+  watch: { slack: { enabled: false, mentions: true }, linear: { enabled: false } },
+  watchState: { slack: {}, linear: {} }, // what's been seen already, so nothing is reported twice
   mcpServers: [], // [{name, url, tokenEnc, enabled}]
   claudeCode: { enabled: false, folder: path.join(os.homedir(), "Clawd Projects"), permissionMode: "acceptEdits" },
 };
@@ -70,6 +74,62 @@ function loadSettings() {
   if (!PERMISSION_MODES.includes(settings.claudeCode.permissionMode)) settings.claudeCode.permissionMode = "acceptEdits";
   if (!Array.isArray(settings.mcpServers)) settings.mcpServers = [];
   if (!BRAINS[settings.brain]) settings.brain = "api";
+  settings.watch = {
+    slack: { enabled: false, mentions: true, ...((settings.watch && settings.watch.slack) || {}) },
+    linear: { enabled: false, ...((settings.watch && settings.watch.linear) || {}) },
+  };
+  settings.watchState = { slack: {}, linear: {}, ...(settings.watchState || {}) };
+}
+
+// ---------- notification watchers ----------
+let watchers = null;
+let summarizing = Promise.resolve();
+
+function startWatchers() {
+  watchers = new Watchers({
+    config: () => ({
+      slack: settings.watch.slack.enabled && settings.slack ? { token: dec(settings.slack.tokenEnc), includeMentions: settings.watch.slack.mentions !== false } : null,
+      linear: settings.watch.linear.enabled && settings.linear ? { token: dec(settings.linear.tokenEnc) } : null,
+    }),
+    state: (name) => settings.watchState[name],
+    save: saveSettings,
+    onStatus: () => sendCompanionState(),
+    onItems: (name, items) => {
+      // One summary at a time, in order.
+      summarizing = summarizing.then(async () => {
+        let summary = null;
+        try {
+          summary = await agent.summarize(name, items);
+        } catch (e) {
+          console.warn("summary failed", e.message);
+        }
+        send("notify", {
+          source: name,
+          summary,
+          items: items.slice(0, 3).map((it) => ({
+            label: name === "slack" ? `${it.from} · ${it.where}` : `${it.id} ${it.title}`,
+            text: it.text.slice(0, 200),
+            link: it.link,
+          })),
+          count: items.length,
+        });
+      });
+    },
+  });
+  watchers.restart();
+}
+
+// A new token (or turning a watcher on) starts fresh, so old messages aren't reported.
+function resetWatch(name) {
+  settings.watchState[name] = {};
+  saveSettings();
+  if (watchers) watchers.restart();
+}
+
+function watchStatus(name) {
+  const s = watchers && watchers.status[name];
+  if (!s) return null;
+  return { ok: s.ok, error: s.error || null, ago: timeAgo(s.at), found: s.found || 0 };
 }
 
 function setBrain(brain) {
@@ -446,6 +506,10 @@ function companionState() {
     slack: settings.slack ? { connected: true, team: settings.slack.team, user: settings.slack.user } : { connected: false },
     github: settings.github ? { connected: true, login: settings.github.login, readOnly: !!settings.github.readOnly } : { connected: false },
     linear: settings.linear ? { connected: true, name: settings.linear.name, org: settings.linear.org, readOnly: !!settings.linear.readOnly } : { connected: false },
+    watch: {
+      slack: { ...settings.watch.slack, status: watchStatus("slack") },
+      linear: { ...settings.watch.linear, status: watchStatus("linear") },
+    },
     mcpServers: settings.mcpServers.map((s) => ({ name: s.name, url: s.url, hasToken: !!s.tokenEnc, enabled: !!s.enabled })),
     claudeCode: { ...settings.claudeCode, installed: claudeInfo },
     shortcut: "⌘⇧Space",
@@ -541,12 +605,14 @@ app.whenReady().then(() => {
   refreshMenus();
   globalShortcut.register(SHORTCUT, toggleInput);
   detectClaudeCode().then(refreshMenus);
+  startWatchers();
   setInterval(refreshMenus, 60000); // keeps the menu-bar menu's chat list fresh
   if (process.argv.includes("--companion")) openCompanion();
 });
 
 app.on("will-quit", () => {
   globalShortcut.unregisterAll();
+  if (watchers) watchers.stop();
   if (agent) agent.shell.kill();
 });
 app.on("window-all-closed", () => app.quit());
@@ -650,6 +716,7 @@ ipcMain.handle("c:slack:connect", async (_e, token) => {
     const who = await slackTest(token);
     settings.slack = { tokenEnc: enc(token), team: who.team, user: who.user };
     saveSettings();
+    resetWatch("slack");
     refreshMenus();
     return { ok: true, team: who.team, user: who.user };
   } catch (err) {
@@ -659,7 +726,18 @@ ipcMain.handle("c:slack:connect", async (_e, token) => {
 ipcMain.handle("c:slack:disconnect", () => {
   settings.slack = null;
   saveSettings();
+  resetWatch("slack");
   refreshMenus();
+  return companionState();
+});
+
+// ---- notification summaries ----
+ipcMain.handle("c:watch:set", (_e, { service, key, value }) => {
+  const w = settings.watch[service];
+  if (w && (key === "enabled" || key === "mentions")) {
+    w[key] = !!value;
+    resetWatch(service);
+  }
   return companionState();
 });
 
@@ -713,6 +791,7 @@ ipcMain.handle("c:linear:connect", async (_e, key) => {
     if (!res.ok || !data.data) throw new Error(res.status === 401 || res.status === 400 ? "Linear rejected this key." : `Linear returned ${res.status}.`);
     settings.linear = { tokenEnc: enc(key), name: data.data.viewer.name, org: data.data.organization.name, readOnly: settings.linear ? !!settings.linear.readOnly : false };
     saveSettings();
+    resetWatch("linear");
     refreshMenus();
     return { ok: true };
   } catch (err) {
@@ -724,6 +803,7 @@ ipcMain.handle("c:app:disconnect", (_e, name) => {
   if (APP_PRESETS[name]) {
     settings[name] = null;
     saveSettings();
+    if (name === "linear") resetWatch("linear");
     refreshMenus();
   }
   return companionState();

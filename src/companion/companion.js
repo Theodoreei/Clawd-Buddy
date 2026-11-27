@@ -129,6 +129,25 @@ function render() {
     $(`${name}RO`).querySelector("input").checked = !!s.readOnly;
   }
 
+  // notification summaries
+  const w = state.watch;
+  const statusText = (s, base) =>
+    !s ? base : s.ok ? `On · checked ${s.ago}${s.found ? ` · ${s.found} summarized so far` : ""}` : `Problem: ${s.error}`;
+  $("slackWatch").classList.toggle("hidden", !state.slack.connected);
+  $("slackMentions").classList.toggle("hidden", !state.slack.connected || !w.slack.enabled);
+  $("slackWatch").querySelector("input").checked = w.slack.enabled;
+  $("slackMentions").querySelector("input").checked = w.slack.mentions !== false;
+  $("slackWatchStatus").textContent = w.slack.enabled
+    ? statusText(w.slack.status, "Starting…")
+    : "When someone DMs you, Clawd wakes up and sums it up. Checks every minute. Needs a User token with search:read.";
+  $("slackWatchStatus").style.color = w.slack.enabled && w.slack.status && !w.slack.status.ok ? "var(--bad)" : "";
+  $("linearWatch").classList.toggle("hidden", !state.linear.connected);
+  $("linearWatch").querySelector("input").checked = w.linear.enabled;
+  $("linearWatchStatus").textContent = w.linear.enabled
+    ? statusText(w.linear.status, "Starting…")
+    : "When an issue is assigned to you, Clawd wakes up and sums it up. Checks every 2 minutes.";
+  $("linearWatchStatus").style.color = w.linear.enabled && w.linear.status && !w.linear.status.ok ? "var(--bad)" : "";
+
   // Slack
   const sl = state.slack;
   $("slackStatus").textContent = sl.connected ? `Connected to ${sl.team} as ${sl.user}` : "Not connected";
@@ -283,6 +302,15 @@ for (const name of ["github", "linear"]) {
   $(`${name}RO`).querySelector("input").addEventListener("change", async (e) => {
     state = await api.setAppReadOnly(name, e.target.checked);
     render();
+  });
+}
+
+// ---------------------------------------------------------------- notification summaries
+for (const [id, service, key] of [["slackWatch", "slack", "enabled"], ["slackMentions", "slack", "mentions"], ["linearWatch", "linear", "enabled"]]) {
+  $(id).querySelector("input").addEventListener("change", async (e) => {
+    state = await api.setWatch(service, key, e.target.checked);
+    render();
+    if (e.target.checked && key === "enabled") react(service === "slack" ? "new-mail" : "todo-list");
   });
 }
 
