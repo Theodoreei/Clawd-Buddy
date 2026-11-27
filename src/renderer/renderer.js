@@ -56,6 +56,15 @@ window.buddy.on((msg) => {
     case "need-key": return showKeyForm(msg.reason === "change" ? "Paste a new Anthropic API key:" : "I need an Anthropic API key to think. Paste one here:");
     case "toggle-input": return toggleInput();
     case "new-chat": return onNewChat();
+    case "memory-cleared":
+      contextLevel = 0;
+      replyText = "";
+      tools.innerHTML = "";
+      wake();
+      player.react("clear", { front: true });
+      effect("sparkles");
+      bump("shake");
+      return say("🧹 Memory wiped! Hi, I'm Clawd… have we met? 😄 What can I do for you?", { fade: 8000 });
     case "layout": return applyLayout(msg);
     case "model": return onModel(msg);
     case "notify": return onNotify(msg);

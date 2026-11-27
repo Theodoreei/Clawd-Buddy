@@ -338,6 +338,7 @@ function buildMenu() {
     { label: "Open Companion…", accelerator: "Command+,", click: () => openCompanion() },
     { label: "Stop", click: () => agent.stop() },
     { label: "New chat", click: () => newChat() },
+    { label: "Clear memory…", click: () => clearMemory() },
     { type: "separator" },
     {
       label: `Brain: ${settings.brain === "api" ? "API key" : "Claude account"}`,
@@ -535,6 +536,24 @@ function toggleInput() {
 function newChat() {
   agent.newChat();
   send("new-chat");
+}
+
+// Wipes everything Clawd remembers about the conversation, after asking.
+async function clearMemory() {
+  app.focus({ steal: true });
+  const { response } = await dialog.showMessageBox({
+    type: "question",
+    buttons: ["Clear memory", "Cancel"],
+    defaultId: 0,
+    cancelId: 1,
+    message: "Clear Clawd's memory?",
+    detail:
+      "He'll forget everything from this conversation: what you've said, his replies, commands you allowed for this chat, and the Claude chat he's continuing. Your settings and connections stay as they are.",
+  });
+  if (response !== 0) return;
+  agent.newChat();
+  send("memory-cleared");
+  refreshMenus();
 }
 
 // ---------- approvals ----------

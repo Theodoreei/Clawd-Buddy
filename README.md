@@ -36,6 +36,7 @@ The first time, Clawd asks for your API key. It's stored encrypted with the macO
 | Drag Clawd | gets carried (falls through the clouds) and bounces when dropped; near the top of the screen his speech bubble flips below him |
 | **Esc** | stops the current task |
 | **⌘N** | new chat |
+| Right-click › **Clear memory…** | after you confirm, Clawd forgets the whole conversation, including commands you allowed for it and the Claude chat he was continuing |
 | **⌘+ / ⌘−**, pinch on the trackpad | makes Clawd bigger or smaller |
 | Ask "switch to Sonnet" | changes which Claude model powers him |
 | × on his speech bubble | dismisses it |
