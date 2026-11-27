@@ -189,7 +189,7 @@ function onTool({ name, detail }) {
   chip.className = "chip";
   const code = document.createElement("code");
   code.textContent = detail.length > 120 ? detail.slice(0, 117) + "…" : detail;
-  const icons = { bash: "▸ ", screenshot: "📸 ", slack: "# ", "claude-code": "⌨︎ ", app: "⇄ " };
+  const icons = { bash: "▸ ", screenshot: "📸 ", slack: "# ", "claude-code": "⌨︎ ", app: "⇄ ", github: "⎇ ", linear: "◢ " };
   chip.append(icons[name] || "• ", code);
   // keep the list short while Claude Code is busy
   while (tools.children.length > 6) tools.firstElementChild.remove();

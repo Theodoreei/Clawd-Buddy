@@ -73,10 +73,18 @@ Right-click Clawd › **Open Companion…**, press **⌘,**, or ask him to open 
 - **General:** model, size, auto-approve, open at login.
 - **API key:** change, test or remove your Anthropic API key.
 - **Connections:**
+  - **GitHub:** click **Use my GitHub CLI sign-in** (if you've run `gh auth login`) or paste a
+    personal access token. Clawd can browse repos and code, and work with issues, pull requests and
+    Actions through GitHub's official MCP server.
+  - **Linear:** paste a personal API key. Clawd can search, read, create and update issues,
+    projects, cycles and comments through Linear's official MCP server.
+  - GitHub and Linear each have a **Read-only** switch. With the Claude API brain, Clawd says what
+    he'll change and waits for your OK in the chat; with the Claude account brain, each change comes
+    to his Allow / Deny bubble.
   - **Slack:** paste a Slack token (setup steps are in the app). Clawd can list channels, read and
     search messages, and send messages. He always asks before sending.
   - **Other apps (MCP servers):** add any remote MCP server by URL (and token if it needs one), such as
-    Notion, Linear, GitHub, Asana or Atlassian. Claude calls these servers directly through the
+    Notion, Asana, Atlassian or Sentry. Claude calls these servers directly through the
     API's MCP connector, so their actions run without Clawd asking first: only add apps you trust.
 - **Claude Code:** let Clawd hand coding jobs (build an app, fix a bug, run tests) to
   [Claude Code](https://code.claude.com/docs/en/quickstart). Pick a projects folder and how much it may

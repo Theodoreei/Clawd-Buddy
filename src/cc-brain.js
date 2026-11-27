@@ -150,7 +150,11 @@ class ClaudeCodeBrain {
             usedTools = true;
             const anim = animationForClaudeCodeTool(b.name, b.input || {}, require("./agent").animationForCommand);
             a.activity(e.parent_tool_use_id ? "agents" : anim);
-            if (!e.parent_tool_use_id) a.emit("tool", { name: b.name === "Bash" ? "bash" : "claude-code", detail: b.name === "Bash" ? (b.input && b.input.command) || "Bash" : describeClaudeCodeTool(b.name, b.input || {}) });
+            if (!e.parent_tool_use_id) {
+              const app = /^mcp__(github|linear)__/.exec(b.name);
+              const chip = b.name === "Bash" ? "bash" : app ? app[1] : b.name.startsWith("mcp__") ? "app" : "claude-code";
+              a.emit("tool", { name: chip, detail: b.name === "Bash" ? (b.input && b.input.command) || "Bash" : describeClaudeCodeTool(b.name, b.input || {}) });
+            }
           }
           return;
         }
@@ -158,7 +162,16 @@ class ClaudeCodeBrain {
           const r = e.request;
           const input = r.input || {};
           const kind = r.tool_name === "Bash" ? "bash" : "claude-code-tool";
-          const detail = r.tool_name === "Bash" ? input.command || "" : `${r.display_name || r.tool_name}: ${r.description || describeClaudeCodeTool(r.tool_name, input)}`;
+          let detail;
+          if (r.tool_name === "Bash") detail = input.command || "";
+          else if (r.tool_name.startsWith("mcp__")) {
+            // e.g. "GitHub: create issue" plus what it would send (repo, title, body…)
+            const args = Object.entries(input)
+              .filter(([, v]) => v !== undefined && v !== null && v !== "")
+              .map(([k, v]) => `${k}: ${typeof v === "string" ? v : JSON.stringify(v)}`)
+              .join("\n");
+            detail = describeClaudeCodeTool(r.tool_name, input) + (args ? `\n${args.slice(0, 600)}` : "");
+          } else detail = `${r.display_name || r.tool_name}: ${r.description || describeClaudeCodeTool(r.tool_name, input)}`;
           const ok = await onApproval(kind, detail);
           send({
             type: "control_response",

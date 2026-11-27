@@ -200,6 +200,8 @@ input[type="password"] { font-family: Menlo, monospace; }
 .conn-logo { width: 34px; height: 34px; border-radius: 8px; display: grid; place-items: center; font: 700 18px Menlo, monospace; color: #fff; }
 .conn-logo.slack { background: #4a154b; }
 .conn-logo.mcp { background: var(--coral); }
+.conn-logo.github { background: #24292f; font-size: 14px; }
+.conn-logo.linear { background: #5e6ad2; font-size: 16px; }
 .steps { margin: 0 0 12px; padding-left: 20px; color: var(--muted); font-size: 12.5px; }
 .steps li { margin-bottom: 4px; }
 

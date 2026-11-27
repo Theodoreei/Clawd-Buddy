@@ -16,6 +16,8 @@ const {
   runClaudeCode,
   animationForClaudeCodeTool,
   describeClaudeCodeTool,
+  animationForAppTool,
+  describeAppTool,
   expandHome,
 } = require("./integrations");
 
@@ -76,7 +78,7 @@ Clawd has a companion window for settings: API key, model, size, connecting apps
 
 ## Connected apps and Claude Code
 - If Slack tools are available, use them for Slack. Sending a message always needs the user's OK, and only send what they asked for.
-- Tools from connected app servers (MCP) may also be available; use them when the user asks about that app.
+- Tools from connected app servers (MCP) may also be available, such as GitHub (repos, files, issues, pull requests, Actions) and Linear (issues, projects, cycles, comments); use them when the user asks about that app. These tools run without an Allow button, so before anything that changes something there (creating, editing, closing, commenting, merging, pushing), say exactly what you'll do and wait for the user's OK in the chat, unless they already asked for exactly that.
 - If the claude_code tool is available, hand real coding work to it (building an app or script, editing code in a project, fixing bugs, running a project's tests) with a complete task description. Use bash yourself for quick one-liners. If the user asks you to code something and claude_code isn't available, say Claude Code can be turned on in the companion app and offer to open it.
 
 ## Switching models
@@ -461,8 +463,8 @@ class Agent extends EventEmitter {
           else if (b.type === "tool_use" && b.name.startsWith("slack_")) this.activity(b.name === "slack_list_channels" ? "search" : "new-mail");
           else if (b.type === "tool_use" && b.name === "open_companion") this.activity("tools");
           else if (b.type === "mcp_tool_use") {
-            this.activity("tools");
-            this.emit("tool", { name: "app", detail: `${b.server_name}: ${b.name}` });
+            this.activity(animationForAppTool(b.server_name, b.name));
+            this.emit("tool", { name: b.server_name === "github" ? "github" : b.server_name === "linear" ? "linear" : "app", detail: describeAppTool(b.server_name, b.name) });
           }
         });
         // As soon as a command is fully written, show what kind of task it is.

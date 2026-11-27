@@ -93,6 +93,54 @@
 
       <div class="conn-card">
         <div class="conn-head">
+          <div class="conn-logo github">GH</div>
+          <div><b>GitHub</b><small id="githubStatus">Not connected</small></div>
+          <button id="githubDisconnect" class="ghost hidden">Disconnect</button>
+        </div>
+        <div id="githubConnect">
+          <div class="btn-row" style="margin: 0 0 10px">
+            <button id="githubCli" class="primary">Use my GitHub CLI sign-in</button>
+            <span class="hint" style="margin:0">if you've run <code>gh auth login</code></span>
+          </div>
+          <p class="steps">Or make a token at <a href="#" data-ext="https://github.com/settings/personal-access-tokens/new">github.com › Settings › Fine-grained tokens</a>: pick the repositories, and give <i>Contents</i>, <i>Issues</i>, <i>Pull requests</i> and <i>Metadata</i> access (read-only is fine if you only want Clawd to look).</p>
+          <form id="githubForm" class="inline-form">
+            <input id="githubToken" type="password" placeholder="github_pat_… or ghp_…" autocomplete="off" spellcheck="false" />
+            <button type="submit">Connect</button>
+          </form>
+        </div>
+        <label class="row toggle hidden" id="githubRO" style="margin-top:10px">
+          <span><b>Read-only</b><small>Clawd can browse repos, issues, PRs and code, but can't change anything.</small></span>
+          <input type="checkbox" />
+        </label>
+        <div class="msg" id="githubMsg"></div>
+        <p class="hint">Uses GitHub's official MCP server: repos, files, issues, pull requests, Actions, code search.</p>
+      </div>
+
+      <div class="conn-card">
+        <div class="conn-head">
+          <div class="conn-logo linear">◢</div>
+          <div><b>Linear</b><small id="linearStatus">Not connected</small></div>
+          <button id="linearDisconnect" class="ghost hidden">Disconnect</button>
+        </div>
+        <div id="linearConnect">
+          <p class="steps">In Linear, open <a href="#" data-ext="https://linear.app/settings/account/security">Settings › Security &amp; access</a> and create a <b>personal API key</b> (choose <i>Read</i> only if you just want Clawd to look).</p>
+          <form id="linearForm" class="inline-form">
+            <input id="linearToken" type="password" placeholder="lin_api_…" autocomplete="off" spellcheck="false" />
+            <button class="primary" type="submit">Connect</button>
+          </form>
+        </div>
+        <label class="row toggle hidden" id="linearRO" style="margin-top:10px">
+          <span><b>Read-only</b><small>Clawd can search and read issues, projects and docs, but can't change anything.</small></span>
+          <input type="checkbox" />
+        </label>
+        <div class="msg" id="linearMsg"></div>
+        <p class="hint">Uses Linear's official MCP server: issues, projects, cycles, comments, docs.</p>
+      </div>
+
+      <p class="hint">With the <b>Claude API</b> brain, GitHub, Linear and other app servers are called by Claude directly, so Clawd tells you what he's about to change and waits for your OK in the chat rather than in an Allow button. With the <b>Claude account</b> brain, each change comes to his Allow / Deny bubble.</p>
+
+      <div class="conn-card">
+        <div class="conn-head">
           <div class="conn-logo slack">#</div>
           <div><b>Slack</b><small id="slackStatus">Not connected</small></div>
           <button id="slackDisconnect" class="ghost hidden">Disconnect</button>
@@ -115,7 +163,7 @@
       <div class="conn-card">
         <div class="conn-head">
           <div class="conn-logo mcp">⇄</div>
-          <div><b>Other apps (MCP servers)</b><small>Notion, Linear, GitHub, Asana, Atlassian and more publish remote MCP servers.</small></div>
+          <div><b>Other apps (MCP servers)</b><small>Notion, Asana, Atlassian, Sentry and more publish remote MCP servers.</small></div>
         </div>
         <div id="mcpList" class="mcp-list"></div>
         <div class="btn-row">

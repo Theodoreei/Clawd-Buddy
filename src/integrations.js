@@ -186,8 +186,38 @@ const CLAUDE_CODE_TOOL = {
   eager_input_streaming: true,
 };
 
+// What Clawd acts out for a tool on a connected app server (GitHub, Linear, others).
+function animationForAppTool(server, tool) {
+  const t = String(tool || "").toLowerCase();
+  const s = String(server || "").toLowerCase();
+  const rules = [
+    [/merge/, "git-pr"],
+    [/review|diff/, "code-review"],
+    [/pull_request|_pr\b|^pr_/, "git-pr"],
+    [/push|create_or_update_file|update_file|create_file/, "git-push"],
+    [/commit/, s === "github" ? "git" : "git-commit"],
+    [/workflow|job|run|action/, "ci-pipeline"],
+    [/search|find|list/, "search"],
+    [/comment/, "new-mail"],
+    [/document|doc/, "docs-read"],
+    [/(create|update|save|write).*issue|issue.*(create|update|write)|project|cycle|milestone/, "todo-list"],
+    [/get|read|file|content|issue/, "reading"],
+    [/branch|tag|release|repo/, "git"],
+  ];
+  for (const [re, anim] of rules) if (re.test(t)) return anim;
+  return s === "github" ? "git" : s === "linear" ? "todo-list" : "tools";
+}
+
+// "create_pull_request" on "github" -> "GitHub: create pull request"
+function describeAppTool(server, tool) {
+  const names = { github: "GitHub", linear: "Linear" };
+  return `${names[server] || server}: ${String(tool).replace(/_/g, " ")}`;
+}
+
 // What Clawd should act out for each Claude Code tool.
 function animationForClaudeCodeTool(name, input, animationForCommand) {
+  const mcp = /^mcp__([^_]+(?:_[^_]+)*?)__(.+)$/.exec(name);
+  if (mcp) return animationForAppTool(mcp[1], mcp[2]);
   if (["Edit", "MultiEdit", "Write", "NotebookEdit"].includes(name)) return "writing";
   if (name === "Read") return /\.pdf$/i.test((input && input.file_path) || "") ? "pdf" : "reading";
   if (name === "Bash") return animationForCommand((input && input.command) || "");
@@ -199,6 +229,8 @@ function animationForClaudeCodeTool(name, input, animationForCommand) {
 }
 
 function describeClaudeCodeTool(name, input = {}) {
+  const mcp = /^mcp__([^_]+(?:_[^_]+)*?)__(.+)$/.exec(name);
+  if (mcp) return describeAppTool(mcp[1], mcp[2]);
   const short = (s) => (s && s.length > 80 ? s.slice(0, 77) + "…" : s || "");
   const file = input.file_path || input.notebook_path || input.path;
   if (file) return `${name} ${file.replace(os.homedir(), "~")}`;
@@ -287,5 +319,7 @@ module.exports = {
   runClaudeCode,
   animationForClaudeCodeTool,
   describeClaudeCodeTool,
+  animationForAppTool,
+  describeAppTool,
   expandHome,
 };

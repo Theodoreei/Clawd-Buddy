@@ -39,6 +39,8 @@ let settings = {
   model: DEFAULT_MODEL,
   brain: "api",
   slack: null, // {tokenEnc, team, user}
+  github: null, // {tokenEnc, login, readOnly}
+  linear: null, // {tokenEnc, name, org, readOnly}
   mcpServers: [], // [{name, url, tokenEnc, enabled}]
   claudeCode: { enabled: false, folder: path.join(os.homedir(), "Clawd Projects"), permissionMode: "acceptEdits" },
 };
@@ -94,13 +96,32 @@ function connectChat(sessionId) {
   return true;
 }
 
+// GitHub and Linear connect through their official remote MCP servers.
+const APP_PRESETS = {
+  github: { label: "GitHub", url: "https://api.githubcopilot.com/mcp/", readOnlyUrl: "https://api.githubcopilot.com/mcp/readonly" },
+  linear: { label: "Linear", url: "https://mcp.linear.app/mcp", readOnlyUrl: "https://mcp.linear.app/mcp/readonly" },
+};
+
+function presetServers() {
+  const out = [];
+  for (const [name, p] of Object.entries(APP_PRESETS)) {
+    const s = settings[name];
+    const token = s && dec(s.tokenEnc);
+    if (token) out.push({ name, url: s.readOnly ? p.readOnlyUrl : p.url, token });
+  }
+  return out;
+}
+
 // What the agent can use right now, with secrets decrypted.
 function getIntegrations() {
   return {
     slackToken: settings.slack ? dec(settings.slack.tokenEnc) : null,
-    mcpServers: settings.mcpServers
-      .filter((s) => s.enabled && s.url)
-      .map((s) => ({ name: s.name, url: s.url, token: s.tokenEnc ? dec(s.tokenEnc) : null })),
+    mcpServers: [
+      ...presetServers(),
+      ...settings.mcpServers
+        .filter((s) => s.enabled && s.url && !APP_PRESETS[s.name])
+        .map((s) => ({ name: s.name, url: s.url, token: s.tokenEnc ? dec(s.tokenEnc) : null })),
+    ],
     claudeCode: { ...settings.claudeCode, path: claudeInfo ? claudeInfo.path : null },
   };
 }
@@ -423,6 +444,8 @@ function companionState() {
     openAtLogin: app.getLoginItemSettings().openAtLogin,
     apiKey: { source: key ? "saved" : envKey ? "env" : "none", hint: k ? `${k.slice(0, 7)}…${k.slice(-4)}` : null },
     slack: settings.slack ? { connected: true, team: settings.slack.team, user: settings.slack.user } : { connected: false },
+    github: settings.github ? { connected: true, login: settings.github.login, readOnly: !!settings.github.readOnly } : { connected: false },
+    linear: settings.linear ? { connected: true, name: settings.linear.name, org: settings.linear.org, readOnly: !!settings.linear.readOnly } : { connected: false },
     mcpServers: settings.mcpServers.map((s) => ({ name: s.name, url: s.url, hasToken: !!s.tokenEnc, enabled: !!s.enabled })),
     claudeCode: { ...settings.claudeCode, installed: claudeInfo },
     shortcut: "⌘⇧Space",
@@ -640,6 +663,80 @@ ipcMain.handle("c:slack:disconnect", () => {
   return companionState();
 });
 
+// ---- GitHub ----
+async function githubWho(token) {
+  const res = await net.fetch("https://api.github.com/user", {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "User-Agent": "Clawd-Buddy" },
+  });
+  if (res.status === 401) throw new Error("GitHub rejected this token.");
+  if (!res.ok) throw new Error(`GitHub returned ${res.status}.`);
+  return (await res.json()).login;
+}
+async function connectGithub(token) {
+  try {
+    const login = await githubWho(token);
+    settings.github = { tokenEnc: enc(token), login, readOnly: settings.github ? !!settings.github.readOnly : false };
+    saveSettings();
+    refreshMenus();
+    return { ok: true, login };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+ipcMain.handle("c:github:connect", (_e, token) => {
+  token = (token || "").trim();
+  if (!/^(gh[pousr]_|github_pat_)/.test(token)) return { ok: false, error: "GitHub tokens start with ghp_, github_pat_ or gho_." };
+  return connectGithub(token);
+});
+// Reuse the GitHub CLI's sign-in (`gh auth token`) instead of making a token.
+ipcMain.handle("c:github:useCli", () =>
+  new Promise((resolve) => {
+    require("child_process").execFile("/bin/zsh", ["-lc", "gh auth token"], { timeout: 15000 }, async (err, stdout) => {
+      const token = (stdout || "").trim();
+      if (err || !token) return resolve({ ok: false, error: "The GitHub CLI isn't signed in. Run `gh auth login` in Terminal, or paste a token instead." });
+      resolve(await connectGithub(token));
+    });
+  })
+);
+
+// ---- Linear ----
+ipcMain.handle("c:linear:connect", async (_e, key) => {
+  key = (key || "").trim();
+  if (!/^lin_(api|oauth)_/.test(key)) return { ok: false, error: "Linear API keys start with lin_api_." };
+  try {
+    const res = await net.fetch("https://api.linear.app/graphql", {
+      method: "POST",
+      headers: { Authorization: key.startsWith("lin_oauth_") ? `Bearer ${key}` : key, "Content-Type": "application/json" },
+      body: JSON.stringify({ query: "{ viewer { name } organization { name } }" }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.data) throw new Error(res.status === 401 || res.status === 400 ? "Linear rejected this key." : `Linear returned ${res.status}.`);
+    settings.linear = { tokenEnc: enc(key), name: data.data.viewer.name, org: data.data.organization.name, readOnly: settings.linear ? !!settings.linear.readOnly : false };
+    saveSettings();
+    refreshMenus();
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle("c:app:disconnect", (_e, name) => {
+  if (APP_PRESETS[name]) {
+    settings[name] = null;
+    saveSettings();
+    refreshMenus();
+  }
+  return companionState();
+});
+ipcMain.handle("c:app:readOnly", (_e, { name, value }) => {
+  if (APP_PRESETS[name] && settings[name]) {
+    settings[name].readOnly = !!value;
+    saveSettings();
+    refreshMenus();
+  }
+  return companionState();
+});
+
 // Remote app servers (MCP). `token` is a new token; keepToken keeps the stored one.
 ipcMain.handle("c:mcp:save", (_e, list) => {
   if (!Array.isArray(list)) return { ok: false, error: "Bad list." };
@@ -656,7 +753,7 @@ ipcMain.handle("c:mcp:save", (_e, list) => {
     }
     if (parsed.protocol !== "https:") return { ok: false, error: `${url}: app servers must use https.` };
     let name = String(item.name || parsed.hostname).toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "app";
-    while (used.has(name)) name += "-2";
+    while (used.has(name) || APP_PRESETS[name]) name += "-2"; // "github"/"linear" belong to the built-in connections
     used.add(name);
     const prev = settings.mcpServers.find((s) => s.name === item.originalName || s.url === url);
     const token = String(item.token || "").trim();

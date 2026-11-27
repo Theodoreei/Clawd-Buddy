@@ -117,6 +117,18 @@ function render() {
   if (code) code.textContent = k.hint;
   $("removeKey").classList.toggle("hidden", k.source !== "saved");
 
+  // GitHub & Linear
+  const gh = state.github;
+  $("githubStatus").textContent = gh.connected ? `Connected as @${gh.login}${gh.readOnly ? " · read-only" : ""}` : "Not connected";
+  const li = state.linear;
+  $("linearStatus").textContent = li.connected ? `Connected to ${li.org} as ${li.name}${li.readOnly ? " · read-only" : ""}` : "Not connected";
+  for (const [name, s] of [["github", gh], ["linear", li]]) {
+    $(`${name}Connect`).classList.toggle("hidden", s.connected);
+    $(`${name}Disconnect`).classList.toggle("hidden", !s.connected);
+    $(`${name}RO`).classList.toggle("hidden", !s.connected);
+    $(`${name}RO`).querySelector("input").checked = !!s.readOnly;
+  }
+
   // Slack
   const sl = state.slack;
   $("slackStatus").textContent = sl.connected ? `Connected to ${sl.team} as ${sl.user}` : "Not connected";
@@ -232,6 +244,47 @@ $("removeKey").addEventListener("click", async () => {
   render();
   msg("keyMsg", "Removed.", true);
 });
+
+// ---------------------------------------------------------------- GitHub & Linear
+async function connected(msgId, res) {
+  if (res.ok) {
+    msg(msgId, "", true);
+    react("celebrate");
+  } else {
+    msg(msgId, res.error, false);
+    react("tool-failure");
+  }
+  state = await api.state();
+  render();
+}
+$("githubCli").addEventListener("click", async () => {
+  msg("githubMsg", "Checking your GitHub CLI sign-in…", true);
+  await connected("githubMsg", await api.githubUseCli());
+});
+$("githubForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  msg("githubMsg", "Connecting…", true);
+  const res = await api.connectGithub($("githubToken").value);
+  if (res.ok) $("githubToken").value = "";
+  await connected("githubMsg", res);
+});
+$("linearForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  msg("linearMsg", "Connecting…", true);
+  const res = await api.connectLinear($("linearToken").value);
+  if (res.ok) $("linearToken").value = "";
+  await connected("linearMsg", res);
+});
+for (const name of ["github", "linear"]) {
+  $(`${name}Disconnect`).addEventListener("click", async () => {
+    state = await api.disconnectApp(name);
+    render();
+  });
+  $(`${name}RO`).querySelector("input").addEventListener("change", async (e) => {
+    state = await api.setAppReadOnly(name, e.target.checked);
+    render();
+  });
+}
 
 // ---------------------------------------------------------------- Slack
 $("slackForm").addEventListener("submit", async (e) => {
