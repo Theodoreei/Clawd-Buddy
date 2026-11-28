@@ -45,22 +45,7 @@ const SlackInputs = {
   slack_send_message: z.object({ channel: z.string().min(1), text: z.string().min(1), thread_ts: z.string().optional() }),
 };
 
-// How Clawd changes his own animations when asked (shared by both brains).
-function swapDocs(swaps = {}) {
-  const current = Object.entries(swaps).map(([k, v]) => `${k === "idle-doze" ? "sleep" : k} → ${v}`);
-  const swapsLine = current.length ? `Your current swaps: ${current.join(", ")}.` : "You have no swaps right now.";
-  return `You can play an animation several times in a row with [[animation*N]] (N up to 20), e.g. [[disco*4:music]] when asked to dance for a while.
-
-Changing your animations: when the user asks you to do a particular animation, play it with a tag. When they ask you to change which animation you use for something, from now on, write a swap tag; it is saved and lasts until they change it back:
-  [[idle=idle-book]]    what you do while awake and waiting (normally "idle")
-  [[sleep=radio]]       what you do when you doze off (normally "idle-doze")
-  [[thinking=idle-coffee]]  any task animation, by its name: thinking, writing, reading, search, bash, permission, done, prompt, git, testing, build, handoff…
-  [[thinking=default]]  puts one back;  [[reset-animations]] puts them all back
-Only swap when they ask for a lasting change, then confirm in a few words what you changed. The new animation must be one from the list below.
-${swapsLine}`;
-}
-
-function buildSystemPrompt(sets, swaps = {}) {
+function buildSystemPrompt(sets) {
   const list = Object.entries(sets)
     .map(([name, s]) => `${name}: ${s.desc}`)
     .join("\n");
@@ -75,7 +60,6 @@ You are animated. Put an animation tag anywhere in your text and you will act it
   [[animation]]  or  [[animation:effect]]
 Use them often (about one per reply, more for big moments) and pick the one that fits the feeling: [[hello:sparkles]] when greeting, [[thinking-aloud]] when puzzling, [[celebrate:confetti]] when something works, [[sorry:sweat]] when something went wrong, [[great-question]], [[right]], [[idle-heart:hearts]] when the user is kind, [[proceed]] when asking whether to continue.
 Effects: ${EFFECTS.join(", ")}.
-${swapDocs(swaps)}
 While you run tools you animate automatically (bash, searching, screenshots, waiting for permission), so you don't need tags for those.
 
 Animations you can use:
@@ -158,11 +142,10 @@ function animationForCommand(cmd = "") {
 
 // Pulls [[animation:effect]] tags out of streamed text, even when a tag is split across chunks.
 class TagParser {
-  constructor(sets, onText, onTag, onSwap) {
+  constructor(sets, onText, onTag) {
     this.sets = sets;
     this.onText = onText;
     this.onTag = onTag;
-    this.onSwap = onSwap;
     this.pending = "";
   }
   push(delta) {
@@ -188,23 +171,6 @@ class TagParser {
       }
       const inner = this.pending.slice(2, close).trim();
       this.pending = this.pending.slice(close + 2);
-      // [[thinking=coffee]] / [[idle=radio]] / [[sleep=default]]: change which animation he uses.
-      const sw = inner.match(/^([a-z0-9-]+)\s*=\s*([a-z0-9-]+)$/i);
-      if (sw) {
-        if (this.onSwap) this.onSwap(sw[1].toLowerCase(), sw[2].toLowerCase());
-        continue;
-      }
-      if (/^reset-animations$/i.test(inner)) {
-        if (this.onSwap) this.onSwap("*", "default");
-        continue;
-      }
-      // [[dance*4]] or [[dance*4:music]]: play it several times in a row.
-      const rep = inner.match(/^([a-z0-9-]+)\*(\d{1,2})(?::([a-z]+))?$/i);
-      if (rep && this.sets[rep[1].toLowerCase()]) {
-        const fx = rep[3] && EFFECTS.includes(rep[3].toLowerCase()) ? rep[3].toLowerCase() : null;
-        this.onTag(rep[1].toLowerCase(), fx, Math.min(20, Math.max(1, Number(rep[2]))));
-        continue;
-      }
       const m = inner.match(/^([a-z0-9-]+)(?::([a-z]+))?$/i);
       if (m && this.sets[m[1].toLowerCase()]) {
         this.onTag(m[1].toLowerCase(), m[2] && EFFECTS.includes(m[2].toLowerCase()) ? m[2].toLowerCase() : null);
@@ -237,6 +203,7 @@ class Agent extends EventEmitter {
     super();
     this.opts = opts;
     this.sets = opts.sets;
+    this.system = buildSystemPrompt(opts.sets);
     this.shell = new Shell();
     this.ccBrain = new ClaudeCodeBrain(this);
     this.messages = [];
@@ -417,17 +384,8 @@ class Agent extends EventEmitter {
         }
         this.emit("text", t);
       },
-      (anim, effect, loops) => this.emit("emote", { anim, effect, loops }),
-      (from, to) => this.emit("anim-swap", { from, to })
+      (anim, effect) => this.emit("emote", { anim, effect })
     );
-  }
-
-  swaps() {
-    return (this.opts.getSwaps && this.opts.getSwaps()) || {};
-  }
-
-  swapDocs() {
-    return swapDocs(this.swaps());
   }
 
   brain() {
@@ -508,7 +466,7 @@ class Agent extends EventEmitter {
           max_tokens: 32000,
           // The second block only changes when the model does, and caches are per model anyway.
           system: [
-            { type: "text", text: buildSystemPrompt(this.sets, this.swaps()) },
+            { type: "text", text: this.system },
             { type: "text", text: `You are currently running on Claude ${cfg.label} (${modelId}).` },
           ],
           tools: this.tools(cfg, integ),
@@ -852,4 +810,4 @@ function captureScreen() {
   });
 }
 
-module.exports = { Agent, TagParser, swapDocs, captureScreen, animationForCommand, MODELS, DEFAULT_MODEL };
+module.exports = { Agent, captureScreen, animationForCommand, MODELS, DEFAULT_MODEL };

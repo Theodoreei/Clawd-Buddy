@@ -31,8 +31,6 @@ const PET_REACTIONS = ["idle-heart", "hello", "great-question", "right", "idle-j
   const init = await window.buddy.init();
   applyLayout(init);
   player = new ClawdPlayer(canvas, init.sets);
-  swapsNow = init.swaps || {};
-  player.setSwaps(swapsNow);
   player.preload(["idle", "idle-doze", "hello", "prompt", "thinking", "bash", "permission", "done", "idle-yawn"]);
   player.react("hello");
   setTimeout(() => effect("sparkles"), 700);
@@ -68,7 +66,6 @@ window.buddy.on((msg) => {
       bump("shake");
       return say("🧹 Memory wiped! Hi, I'm Clawd… have we met? 😄 What can I do for you?", { fade: 8000 });
     case "layout": return applyLayout(msg);
-    case "swaps": return onSwaps(msg);
     case "model": return onModel(msg);
     case "notify": return onNotify(msg);
     case "context": return onContext(msg);
@@ -171,20 +168,9 @@ function onActivity({ anim, once }) {
   else player.setMode(anim);
 }
 
-// He changed which animation he uses for something: show off the new one once.
-let swapsNow = {};
-function onSwaps({ swaps }) {
-  const before = swapsNow;
-  swapsNow = swaps || {};
-  player.setSwaps(swapsNow);
-  const changed = Object.keys(swapsNow).find((k) => swapsNow[k] !== before[k]);
-  if (changed && !busy) player.react(swapsNow[changed], { front: true });
-  if (!Object.keys(swapsNow).length && Object.keys(before).length) effect("sparkles");
-}
-
-function onEmote({ anim, effect: eff, loops }) {
+function onEmote({ anim, effect: eff }) {
   emotedThisTurn = true;
-  if (anim) player.react(anim, { front: true, loops: loops || 1 });
+  if (anim) player.react(anim, { front: true });
   if (eff) effect(eff);
   else if (anim) effect(autoEffect(anim));
 }
@@ -650,7 +636,7 @@ function idleTick() {
     dozing = true;
     player.setIdle("idle-doze");
   }
-  if (dozing && !swapsNow["idle-doze"] && player.current() === "idle-doze" && Math.random() < 0.12) effect("zzz");
+  if (dozing && player.current() === "idle-doze" && Math.random() < 0.12) effect("zzz");
 }
 
 // ---------------------------------------------------------------- effects

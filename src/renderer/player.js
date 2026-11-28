@@ -30,21 +30,9 @@ class ClawdPlayer {
     return !!this.sets[name];
   }
 
-  // Swaps the user picked ("drink coffee while you think"): {thinking: "idle-coffee", idle: …}.
-  setSwaps(swaps) {
-    this.swaps = swaps || {};
-    this._load(this.desired());
-    this._maybeCut();
-  }
-
-  _swap(name) {
-    const to = name && this.swaps && this.swaps[name];
-    return to && this.has(to) ? to : name;
-  }
-
   // ---------- public API ----------
   setMode(name) {
-    if (name && !this.has(this._swap(name))) return;
+    if (name && !this.has(name)) return;
     if (this.mode === name) return;
     this.mode = name;
     this._load(this.desired());
@@ -60,7 +48,6 @@ class ClawdPlayer {
 
   // Play a set once (one loop), then go back to what Clawd was doing.
   react(name, { loops = 1, front = false } = {}) {
-    name = this._swap(name);
     if (!this.has(name)) return;
     const item = { name, loops };
     if (front) this.queue.unshift(item);
@@ -92,7 +79,7 @@ class ClawdPlayer {
   // ---------- internals ----------
   desired() {
     if (this.queue.length) return this.queue[0].name;
-    return this._swap(this.mode) || this._swap(this.idle);
+    return this.mode || this.idle;
   }
 
   _maybeCut() {
@@ -127,7 +114,7 @@ class ClawdPlayer {
   }
 
   _evict() {
-    const keep = new Set([this._swap(this.idle), this._swap(this.mode), ...(this.queue.map((q) => q.name)), this.cur && this.cur.name]);
+    const keep = new Set([this.idle, this.mode, ...(this.queue.map((q) => q.name)), this.cur && this.cur.name]);
     while (this.cache.size > MAX_CACHED_SETS) {
       const victim = [...this.lru].reverse().find((n) => this.cache.has(n) && !keep.has(n));
       if (!victim) break;

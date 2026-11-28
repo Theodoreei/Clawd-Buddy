@@ -170,20 +170,6 @@ input[type="text"], input[type="password"], input[type="url"] {
   outline: none;
   min-width: 0;
 }
-select {
-  font: 13px -apple-system, sans-serif;
-  color: var(--ink);
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  padding: 6px 8px;
-  max-width: 170px;
-}
-select:focus { outline: none; border-color: var(--coral); box-shadow: 0 0 0 3px var(--focus); }
-.add-swap .inline-form { align-items: center; flex-wrap: wrap; justify-content: flex-end; }
-.add-swap select { max-width: 130px; }
-.arrow { color: var(--muted); }
-.swap b code { font: 12px Menlo, monospace; }
 input:focus { border-color: var(--coral); box-shadow: 0 0 0 3px var(--focus); }
 input[type="password"] { font-family: Menlo, monospace; }
 .inline-form { display: flex; gap: 8px; }

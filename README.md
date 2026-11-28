@@ -39,8 +39,6 @@ The first time, Clawd asks for your API key. It's stored encrypted with the macO
 | Right-click › **Clear memory…** | after you confirm, Clawd forgets the whole conversation, including commands you allowed for it and the Claude chat he was continuing |
 | **⌘+ / ⌘−**, pinch on the trackpad | makes Clawd bigger or smaller |
 | Ask "switch to Sonnet" | changes which Claude model powers him |
-| Ask "do the disco animation" or "dance for a while" | plays it (once, or a few times in a row) |
-| Ask "drink coffee while you think" or "sleep with the radio on" | changes which animation he uses for that from now on; "put your animations back" undoes it |
 | × on his speech bubble | dismisses it |
 
 Clicks go straight through the clear parts of his window to whatever is behind it.
@@ -73,9 +71,7 @@ read them, so only Code-tab and Claude Code chats are listed.
 Right-click Clawd › **Open Companion…**, press **⌘,**, or ask him to open it.
 (`open -a "Clawd Buddy" --args --companion` works too.)
 
-- **General:** model, size, auto-approve, open at login, and **Animations**: what he does while
-  waiting, while asleep, and for any task (thinking, writing, reading…), with one click to put them
-  all back. Right-click › **Reset animations** does the same.
+- **General:** model, size, auto-approve, open at login.
 - **API key:** change, test or remove your Anthropic API key.
 - **Connections:**
   - **GitHub:** click **Use my GitHub CLI sign-in** (if you've run `gh auth login`) or paste a
@@ -126,8 +122,6 @@ Right-click Clawd › **Open Companion…**, press **⌘,**, or ask him to open 
 - **His own reactions:** Claude writes tags like `[[celebrate:confetti]]` or `[[sorry:sweat]]` in
   its reply to act things out. All 129 MyClawd sets are available, plus particles (hearts, sparkles,
   confetti, ?, !, zzz, sweat, music) and squash/hop/shake motion.
-- **Your picks:** ask him to use a different animation for something and he remembers it
-  (saved with your settings), with either brain.
 - **Sleep:** after a few quiet seconds he dozes off and snores; the animation's ending is his
   wake-up stretch.
 

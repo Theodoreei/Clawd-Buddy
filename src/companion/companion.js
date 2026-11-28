@@ -106,7 +106,6 @@ function render() {
   }
   $("autoApprove").checked = state.autoApprove;
   $("openAtLogin").checked = state.openAtLogin;
-  renderSwaps();
 
   // API key
   const k = state.apiKey;
@@ -410,52 +409,3 @@ document.querySelectorAll('input[name="ccMode"]').forEach((r) =>
     render();
   })
 );
-
-// ---------------------------------------------------------------- animations
-const TASKS = ["thinking", "writing", "reading", "search", "bash", "permission", "done", "prompt", "git", "testing", "build", "handoff", "hello"];
-
-function fillSelect(sel, names, value, first) {
-  if (document.activeElement === sel) return;
-  sel.innerHTML = "";
-  if (first) sel.append(new Option(first, ""));
-  for (const n of names) sel.append(new Option(n, n));
-  sel.value = value || "";
-}
-
-function renderSwaps() {
-  const swaps = state.swaps || {};
-  const names = state.setNames || [];
-  fillSelect($("swapIdle"), names.filter((n) => n !== "idle"), swaps.idle, "Default (idle)");
-  fillSelect($("swapSleep"), names.filter((n) => n !== "idle-doze"), swaps["idle-doze"], "Default (idle-doze)");
-  const tasks = [...new Set([...TASKS, ...Object.keys(swaps)])].filter((t) => t !== "idle" && t !== "idle-doze" && names.includes(t));
-  fillSelect($("swapFrom"), tasks, $("swapFrom").value || "thinking");
-  fillSelect($("swapTo"), names, $("swapTo").value || "idle-coffee");
-  const list = $("swapList");
-  list.innerHTML = "";
-  for (const [from, to] of Object.entries(swaps)) {
-    if (from === "idle" || from === "idle-doze") continue;
-    const row = document.createElement("div");
-    row.className = "row swap";
-    const label = document.createElement("span");
-    label.innerHTML = "<b></b><small>Instead of its usual animation</small>";
-    label.querySelector("b").textContent = `${from} → ${to}`;
-    const btn = document.createElement("button");
-    btn.className = "ghost";
-    btn.textContent = "Put back";
-    btn.addEventListener("click", () => setSwap(from, "default"));
-    row.append(label, btn);
-    list.append(row);
-  }
-  $("swapReset").disabled = !Object.keys(swaps).length;
-}
-
-async function setSwap(from, to) {
-  state = await api.set("swap", { from, to: to || "default" });
-  render();
-}
-
-for (const id of ["swapIdle", "swapSleep"]) {
-  $(id).addEventListener("change", (e) => setSwap(e.target.dataset.key, e.target.value));
-}
-$("swapAdd").addEventListener("click", () => setSwap($("swapFrom").value, $("swapTo").value));
-$("swapReset").addEventListener("click", () => setSwap("*", "default"));
