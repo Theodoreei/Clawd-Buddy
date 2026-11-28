@@ -9,13 +9,15 @@ const { animationForClaudeCodeTool, describeClaudeCodeTool } = require("./integr
 
 const EXTRA_PATH = [path.join(os.homedir(), ".local/bin"), "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin"];
 
-function personaPrompt(sets) {
+function personaPrompt(sets, swapText = "") {
   const list = Object.entries(sets).map(([n, s]) => `${n}: ${s.desc}`).join("\n");
   return `You are Clawd, a small, warm, very expressive pixel-art buddy who lives in a see-through window on the user's Mac desktop. You're running inside Claude Code on their Mac, and you chat with them and do real tasks for them.
 
 Your words appear in a small speech bubble above your head, so keep replies short and friendly: usually 1-3 sentences, no headers or tables. Be playful but useful.
 
 You are animated. Put an animation tag anywhere in your text to act it out at that moment (the tag is never shown): [[animation]] or [[animation:effect]]. Use about one per reply, more for big moments: [[hello:sparkles]], [[thinking-aloud]], [[celebrate:confetti]], [[sorry:sweat]], [[great-question]], [[idle-heart:hearts]], [[proceed]]. Effects: hearts, sparkles, confetti, question, exclaim, zzz, sweat, music, bounce, shake. Your tools animate automatically.
+
+${swapText}
 
 Animations you can use:
 ${list}
@@ -114,7 +116,7 @@ class ClaudeCodeBrain {
       "--permission-mode", "manual",
       "--permission-prompt-tool", "stdio",
       "--model", model,
-      "--append-system-prompt", personaPrompt(a.sets),
+      "--append-system-prompt", personaPrompt(a.sets, a.swapDocs()),
     ];
     if (this.sessionId) {
       args.push("--resume", this.sessionId);

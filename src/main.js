@@ -339,6 +339,7 @@ function buildMenu() {
     { label: "Stop", click: () => agent.stop() },
     { label: "New chat", click: () => newChat() },
     { label: "Clear memory…", click: () => clearMemory() },
+    ...(Object.keys(settings.animSwaps || {}).length ? [{ label: "Reset animations", click: () => swapAnimation("*", "default") }] : []),
     { type: "separator" },
     {
       label: `Brain: ${settings.brain === "api" ? "API key" : "Claude account"}`,
@@ -485,6 +486,30 @@ function openCompanion(section) {
   });
 }
 
+// ---------------------------------------------------------------- animation swaps
+// "Drink coffee while you think": {thinking: "idle-coffee"}. "idle" is awake-and-waiting,
+// "idle-doze" is asleep. Saved, and applied by the player to everything it plays.
+const SWAP_ALIASES = { sleep: "idle-doze", sleeping: "idle-doze", doze: "idle-doze", awake: "idle", waiting: "idle", rest: "idle" };
+const SWAP_RESETS = new Set(["default", "normal", "reset", "none", "original", "off"]);
+
+function swapAnimation(from, to) {
+  const swaps = { ...(settings.animSwaps || {}) };
+  if (from === "*") {
+    for (const k of Object.keys(swaps)) delete swaps[k];
+  } else {
+    const key = SWAP_ALIASES[from] || from;
+    if (!sets[key]) return false;
+    if (SWAP_RESETS.has(to) || to === key) delete swaps[key];
+    else if (sets[to]) swaps[key] = to;
+    else return false;
+  }
+  settings.animSwaps = swaps;
+  saveSettings();
+  send("swaps", { swaps });
+  refreshMenus();
+  return true;
+}
+
 function companionState() {
   const key = dec(settings.apiKeyEnc);
   const envKey = process.env.ANTHROPIC_API_KEY;
@@ -495,6 +520,8 @@ function companionState() {
   } catch {}
   return {
     brain: settings.brain,
+    swaps: settings.animSwaps || {},
+    setNames: Object.keys(sets).sort(),
     chats,
     connectedChat: settings.brain === "claude-code" && agent ? agent.ccBrain.title : null,
     models: Object.entries(MODELS).map(([id, m]) => ({ id, label: m.label, blurb: m.blurb })),
@@ -599,6 +626,7 @@ app.whenReady().then(() => {
     setModel,
     getIntegrations,
     getBrain: () => settings.brain,
+    getSwaps: () => settings.animSwaps || {},
     openCompanion: (section) => openCompanion(section),
     requestApproval,
     takeScreenshot: async () => {
@@ -617,6 +645,7 @@ app.whenReady().then(() => {
     agent.on(ev, (p) => send(ev, typeof p === "string" ? { text: p } : p || {}));
   }
   agent.on("need-key", () => send("need-key", { reason: "missing" }));
+  agent.on("anim-swap", ({ from, to }) => swapAnimation(from, to));
 
   createWindow();
   tray = new Tray(trayImage());
@@ -647,6 +676,7 @@ ipcMain.handle("init", () => ({
   model: settings.model,
   modelLabel: MODELS[settings.model].label,
   shortcut: "⌘⇧Space",
+  swaps: settings.animSwaps || {},
 }));
 ipcMain.on("send", (_e, text) => {
   if (typeof text === "string" && text.trim()) agent.send(text.trim());
@@ -685,6 +715,7 @@ ipcMain.handle("c:set", (_e, { key, value }) => {
     saveSettings();
     send("settings", { autoApprove: settings.autoApprove });
   } else if (key === "openAtLogin") app.setLoginItemSettings({ openAtLogin: !!value });
+  else if (key === "swap" && value && typeof value.from === "string" && typeof value.to === "string") swapAnimation(value.from, value.to);
   refreshMenus();
   return companionState();
 });
